@@ -10,27 +10,27 @@ import (
 
 const serviceName = "instagram-service"
 
-type books struct {
+type Service struct {
 	logger    logger.Logger
 	name      string
 	timeStart time.Time
 }
 
-func New(l logger.Logger) *books {
-	return &books{
+func New(l logger.Logger) *Service {
+	return &Service{
 		logger:    logger.With(l, "service", serviceName),
 		name:      serviceName,
 		timeStart: time.Now(),
 	}
 }
 
-func (s books) Name() string { return s.name }
+func (s Service) Name() string { return s.name }
 
-func (s books) Start(ctx context.Context) error {
+func (s Service) Start(ctx context.Context) error {
 	<-ctx.Done()
 	return nil
 }
 
-func (s books) Stop(ctx context.Context) error { return nil }
+func (s Service) Stop(ctx context.Context) error { return nil }
 
-var _ service.IService = (*books)(nil)
+var _ service.IService = (*Service)(nil)

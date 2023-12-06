@@ -34,11 +34,17 @@ _test
 # Visual Studio Code
 .vscode
 
-#protos/*.go
 ./start*
 .env
+.netrc
+
 Dockerfile-dev
-vendor/
+dev.Dockerfile
+node_modules
+build
+.build
+dist
+internal/store/temp
 
 go.work
 go.work.sum

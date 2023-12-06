@@ -1,0 +1,16 @@
+syntax = "proto3";
+package bot;
+
+// import "google/protobuf/timestamp.proto";
+// import "google/protobuf/empty.proto";
+
+option go_package = ".;pb";
+
+// Get
+message GetInstagramLinkRequest { string link = 1; }
+message GetInstagramLinkResponse { string link = 1; }
+
+service BotService {
+  rpc GetInstagramLink(GetInstagramLinkRequest)
+      returns (GetInstagramLinkResponse) {};
+}

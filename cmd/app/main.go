@@ -41,7 +41,7 @@ func main() {
 	instagramService := instagram.New(logger)
 
 	// grpc servers
-	botGrpcServer := api.NewBotGrpcServer()
+	botGrpcServer := api.NewBotGrpcServer(instagramService)
 
 	// grpc instance
 	grpcServer := grpc_transport.NewServer(
