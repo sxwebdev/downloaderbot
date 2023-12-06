@@ -1,3 +1,5 @@
+// This code is borrowed from this repository with small changes
+// https://github.com/omegaatt36/instagramrobot
 package instagram
 
 import (
@@ -31,10 +33,13 @@ var (
 
 // GetPostWithCode lets you to get information about specific Instagram post
 // by providing its unique shortcode
-func GetPostWithCode(code string) (transform.Media, error) {
-	// TODO: validate code
+func GetPostWithCode(ctx context.Context, code string) (*transform.Media, error) {
+	// validate media code
+	if code == "" {
+		return nil, fmt.Errorf("empty code")
+	}
 
-	URL := fmt.Sprintf("https://www.instagram.com/p/%v/embed/captioned/", code)
+	URL := fmt.Sprintf("https://www.instagram.com/p/%s/embed/captioned/", code)
 
 	var embeddedMediaImage string
 	var embedResponse = response.EmbedResponse{}
@@ -70,26 +75,27 @@ func GetPostWithCode(code string) (transform.Media, error) {
 		errChan <- collector.Visit(URL)
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	select {
 	case err := <-errChan:
 		if err != nil {
-			return transform.Media{}, err
+			return nil, err
 		}
 	case <-ctx.Done():
-		return transform.Media{}, fmt.Errorf("failed request by context")
+		return nil, fmt.Errorf("failed request by context")
 	}
 
 	// If the method one which is JSON parsing didn't fail
 	if !embedResponse.IsEmpty() {
 		// Transform the Embed response and return
-		return transform.FromEmbedResponse(embedResponse), nil
+		resp := transform.FromEmbedResponse(embedResponse)
+		return &resp, nil
 	}
 
 	if embeddedMediaImage != "" {
-		return transform.Media{
+		return &transform.Media{
 			Url: embeddedMediaImage,
 			Items: []transform.MediaItem{
 				{
@@ -100,8 +106,7 @@ func GetPostWithCode(code string) (transform.Media, error) {
 	}
 
 	// If every two methods have failed, then return an error
-	return transform.Media{}, errors.New("failed to fetch the post\nthe page might be \"private\", or\nthe link is completely wrong")
-
+	return nil, errors.New("failed to fetch the post\nthe page might be \"private\", or\nthe link is completely wrong")
 }
 
 // ExtractShortcodeFromLink will extract the media shortcode from a URL link or path

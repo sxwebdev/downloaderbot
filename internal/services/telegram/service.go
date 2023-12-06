@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"time"
 
 	"github.com/tkcrm/mx/logger"
 	"github.com/tkcrm/mx/service"
@@ -11,16 +10,14 @@ import (
 const serviceName = "telegram-service"
 
 type Service struct {
-	logger    logger.Logger
-	name      string
-	timeStart time.Time
+	logger logger.Logger
+	name   string
 }
 
 func New(l logger.Logger) *Service {
 	return &Service{
-		logger:    logger.With(l, "service", serviceName),
-		name:      serviceName,
-		timeStart: time.Now(),
+		logger: logger.With(l, "service", serviceName),
+		name:   serviceName,
 	}
 }
 

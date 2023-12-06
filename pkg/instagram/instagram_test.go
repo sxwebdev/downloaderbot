@@ -1,6 +1,7 @@
 package instagram_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -36,7 +37,7 @@ func TestGetPostWithCode(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			resp, err := instagram.GetPostWithCode(code)
+			resp, err := instagram.GetPostWithCode(context.Background(), code)
 			if err != nil {
 				t.Fatal(err)
 			}

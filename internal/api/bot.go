@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/sxwebdev/downloaderbot/pb"
 	"github.com/sxwebdev/downloaderbot/pkg/instagram"
@@ -28,25 +27,25 @@ func (s *grpcServer) Register(srv *grpc.Server) {
 }
 
 func (s *grpcServer) GetMediaFromInstagram(ctx context.Context, req *pb.GetMediaFromInstagramRequest) (*pb.GetMediaFromInstagramResponse, error) {
-	if req.Url == "" {
-		return nil, fmt.Errorf("empty url")
-	}
-
+	// extract media code from url
 	code, err := instagram.ExtractShortcodeFromLink(req.Url)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := instagram.GetPostWithCode(code)
+	// get media data from instagram
+	data, err := instagram.GetPostWithCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 
+	// define response
 	resp := &pb.GetMediaFromInstagramResponse{
 		Caption: data.Caption,
 		Items:   make([]*pb.MediaItem, len(data.Items)),
 	}
 
+	// set pb media items
 	for index, item := range data.Items {
 		resp.Items[index] = &pb.MediaItem{
 			Url:     item.Url,
