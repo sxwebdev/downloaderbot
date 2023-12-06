@@ -1,0 +1,34 @@
+syntax = "proto3";
+package author;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = ".;pb";
+
+message Author {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+// Get
+message GetRequest { string id = 1; }
+message GetResponse { Author item = 1; }
+
+// Find
+message FindResponse { repeated Author items = 1; }
+
+// Create
+message CreateRequest { string name = 2; }
+message CreateResponse { Author item = 1; }
+
+// Delete
+message DeleteRequest { string id = 1; }
+
+service AuthorService {
+  rpc Get(GetRequest) returns (GetResponse) {};
+  rpc Find(google.protobuf.Empty) returns (FindResponse) {};
+  rpc Create(CreateRequest) returns (CreateResponse) {};
+  rpc Delete(DeleteRequest) returns (google.protobuf.Empty) {};
+}
