@@ -9,10 +9,11 @@ import (
 
 // Config ...
 type Config struct {
-	EnvCI       string `validate:"required" env:"ENV_CI" example:"dev"`
-	ServiceName string `default:"downloaderbot" validate:"required"`
-	Log         logger.Config
-	Ops         ops.Config
-	Redis       dragonfly.Config
-	Grpc        grpc_transport.Config
+	EnvCI               string `validate:"required" env:"ENV_CI" example:"dev"`
+	ServiceName         string `default:"downloaderbot" validate:"required"`
+	Log                 logger.Config
+	Ops                 ops.Config
+	Redis               dragonfly.Config
+	Grpc                grpc_transport.Config
+	TelegramBotApiToken string `validate:"required" secret:"true" usage:"use token for your telegram bot"`
 }

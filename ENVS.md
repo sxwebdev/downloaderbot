@@ -33,3 +33,4 @@
 | `GRPC_HEALTH_CHECK_ENABLED` |          |        | `false`         | allows to enable grpc health checker                                          | `false`          |
 | `GRPC_LOGGER_ENABLED`       |          |        | `false`         | allows to enable logger. available only for default grpc sevrer               | `false`          |
 | `GRPC_RECOVERY_ENABLED`     |          |        | `false`         | allows to enable recovery from panics. available only for default grpc sevrer | `false`          |
+| `TELEGRAM_BOT_API_TOKEN`    | ✅        | ✅      |                 | use token for your telegram bot                                               |                  |

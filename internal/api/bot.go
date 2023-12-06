@@ -2,21 +2,21 @@ package api
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/sxwebdev/downloaderbot/internal/services/instagram"
 	"github.com/sxwebdev/downloaderbot/pb"
+	"github.com/sxwebdev/downloaderbot/pkg/instagram"
 	"google.golang.org/grpc"
 )
 
 type grpcServer struct {
 	name string
 
-	instagramService *instagram.Service
 	pb.UnimplementedBotServiceServer
 }
 
-func NewBotGrpcServer(instagramService *instagram.Service) *grpcServer {
-	return &grpcServer{name: "bot-server", instagramService: instagramService}
+func NewBotGrpcServer() *grpcServer {
+	return &grpcServer{name: "bot-server"}
 }
 
 // Name of the service
@@ -27,18 +27,32 @@ func (s *grpcServer) Register(srv *grpc.Server) {
 	pb.RegisterBotServiceServer(srv, s)
 }
 
-func (s *grpcServer) GetInstagramLink(ctx context.Context, req *pb.GetInstagramLinkRequest) (*pb.GetInstagramLinkResponse, error) {
-	code, err := s.instagramService.ExtractShortcodeFromLink(req.Link)
+func (s *grpcServer) GetMediaFromInstagram(ctx context.Context, req *pb.GetMediaFromInstagramRequest) (*pb.GetMediaFromInstagramResponse, error) {
+	if req.Url == "" {
+		return nil, fmt.Errorf("empty url")
+	}
+
+	code, err := instagram.ExtractShortcodeFromLink(req.Url)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := s.instagramService.GetPostWithCode(code)
+	data, err := instagram.GetPostWithCode(code)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.GetInstagramLinkResponse{
-		Link: resp.Url,
-	}, nil
+	resp := &pb.GetMediaFromInstagramResponse{
+		Caption: data.Caption,
+		Items:   make([]*pb.MediaItem, len(data.Items)),
+	}
+
+	for index, item := range data.Items {
+		resp.Items[index] = &pb.MediaItem{
+			Url:     item.Url,
+			IsVideo: item.IsVideo,
+		}
+	}
+
+	return resp, nil
 }

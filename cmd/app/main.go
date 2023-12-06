@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/sxwebdev/downloaderbot/internal/api"
 	"github.com/sxwebdev/downloaderbot/internal/config"
-	"github.com/sxwebdev/downloaderbot/internal/services/instagram"
+	"github.com/sxwebdev/downloaderbot/internal/services/telegram"
 	"github.com/tkcrm/mx/cfg"
 	"github.com/tkcrm/mx/launcher"
 	"github.com/tkcrm/mx/logger"
@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	appName = "micro-example"
+	appName = "downloaderbot"
 	version = "local"
 )
 
@@ -38,10 +38,10 @@ func main() {
 	)
 
 	// services
-	instagramService := instagram.New(logger)
+	telegramService := telegram.New(logger)
 
 	// grpc servers
-	botGrpcServer := api.NewBotGrpcServer(instagramService)
+	botGrpcServer := api.NewBotGrpcServer()
 
 	// grpc instance
 	grpcServer := grpc_transport.NewServer(
@@ -52,7 +52,7 @@ func main() {
 
 	ln.ServicesRunner().Register(
 		service.New(service.WithService(grpcServer)),
-		service.New(service.WithService(instagramService)),
+		service.New(service.WithService(telegramService)),
 		service.New(service.WithService(pingpong.New(logger))),
 	)
 

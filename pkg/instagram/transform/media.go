@@ -1,6 +1,6 @@
 package transform
 
-import "github.com/sxwebdev/downloaderbot/internal/services/instagram/response"
+import "github.com/sxwebdev/downloaderbot/pkg/instagram/response"
 
 // Owner is a single Instagram user who owns the Media
 type Owner struct {

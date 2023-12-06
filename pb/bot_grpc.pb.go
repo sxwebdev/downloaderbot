@@ -19,14 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	BotService_GetInstagramLink_FullMethodName = "/bot.BotService/GetInstagramLink"
+	BotService_GetMediaFromInstagram_FullMethodName = "/bot.BotService/GetMediaFromInstagram"
 )
 
 // BotServiceClient is the client API for BotService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BotServiceClient interface {
-	GetInstagramLink(ctx context.Context, in *GetInstagramLinkRequest, opts ...grpc.CallOption) (*GetInstagramLinkResponse, error)
+	GetMediaFromInstagram(ctx context.Context, in *GetMediaFromInstagramRequest, opts ...grpc.CallOption) (*GetMediaFromInstagramResponse, error)
 }
 
 type botServiceClient struct {
@@ -37,9 +37,9 @@ func NewBotServiceClient(cc grpc.ClientConnInterface) BotServiceClient {
 	return &botServiceClient{cc}
 }
 
-func (c *botServiceClient) GetInstagramLink(ctx context.Context, in *GetInstagramLinkRequest, opts ...grpc.CallOption) (*GetInstagramLinkResponse, error) {
-	out := new(GetInstagramLinkResponse)
-	err := c.cc.Invoke(ctx, BotService_GetInstagramLink_FullMethodName, in, out, opts...)
+func (c *botServiceClient) GetMediaFromInstagram(ctx context.Context, in *GetMediaFromInstagramRequest, opts ...grpc.CallOption) (*GetMediaFromInstagramResponse, error) {
+	out := new(GetMediaFromInstagramResponse)
+	err := c.cc.Invoke(ctx, BotService_GetMediaFromInstagram_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (c *botServiceClient) GetInstagramLink(ctx context.Context, in *GetInstagra
 // All implementations must embed UnimplementedBotServiceServer
 // for forward compatibility
 type BotServiceServer interface {
-	GetInstagramLink(context.Context, *GetInstagramLinkRequest) (*GetInstagramLinkResponse, error)
+	GetMediaFromInstagram(context.Context, *GetMediaFromInstagramRequest) (*GetMediaFromInstagramResponse, error)
 	mustEmbedUnimplementedBotServiceServer()
 }
 
@@ -58,8 +58,8 @@ type BotServiceServer interface {
 type UnimplementedBotServiceServer struct {
 }
 
-func (UnimplementedBotServiceServer) GetInstagramLink(context.Context, *GetInstagramLinkRequest) (*GetInstagramLinkResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetInstagramLink not implemented")
+func (UnimplementedBotServiceServer) GetMediaFromInstagram(context.Context, *GetMediaFromInstagramRequest) (*GetMediaFromInstagramResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMediaFromInstagram not implemented")
 }
 func (UnimplementedBotServiceServer) mustEmbedUnimplementedBotServiceServer() {}
 
@@ -74,20 +74,20 @@ func RegisterBotServiceServer(s grpc.ServiceRegistrar, srv BotServiceServer) {
 	s.RegisterService(&BotService_ServiceDesc, srv)
 }
 
-func _BotService_GetInstagramLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetInstagramLinkRequest)
+func _BotService_GetMediaFromInstagram_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMediaFromInstagramRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BotServiceServer).GetInstagramLink(ctx, in)
+		return srv.(BotServiceServer).GetMediaFromInstagram(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BotService_GetInstagramLink_FullMethodName,
+		FullMethod: BotService_GetMediaFromInstagram_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BotServiceServer).GetInstagramLink(ctx, req.(*GetInstagramLinkRequest))
+		return srv.(BotServiceServer).GetMediaFromInstagram(ctx, req.(*GetMediaFromInstagramRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -100,8 +100,8 @@ var BotService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*BotServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetInstagramLink",
-			Handler:    _BotService_GetInstagramLink_Handler,
+			MethodName: "GetMediaFromInstagram",
+			Handler:    _BotService_GetMediaFromInstagram_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

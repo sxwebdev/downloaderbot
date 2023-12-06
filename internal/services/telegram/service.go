@@ -1,4 +1,4 @@
-package instagram
+package telegram
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/tkcrm/mx/service"
 )
 
-const serviceName = "instagram-service"
+const serviceName = "telegram-service"
 
 type Service struct {
 	logger    logger.Logger

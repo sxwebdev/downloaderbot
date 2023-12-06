@@ -1,16 +1,21 @@
 syntax = "proto3";
 package bot;
 
-// import "google/protobuf/timestamp.proto";
-// import "google/protobuf/empty.proto";
-
 option go_package = ".;pb";
 
+message MediaItem {
+  string url = 1;
+  bool is_video = 2;
+}
+
 // Get
-message GetInstagramLinkRequest { string link = 1; }
-message GetInstagramLinkResponse { string link = 1; }
+message GetMediaFromInstagramRequest { string url = 1; }
+message GetMediaFromInstagramResponse {
+  string caption = 1;
+  repeated MediaItem items = 2;
+}
 
 service BotService {
-  rpc GetInstagramLink(GetInstagramLinkRequest)
-      returns (GetInstagramLinkResponse) {};
+  rpc GetMediaFromInstagram(GetMediaFromInstagramRequest)
+      returns (GetMediaFromInstagramResponse) {};
 }

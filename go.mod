@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/EDDYCJY/fake-useragent v0.2.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/sxwebdev/colly/v2 v2.2.1
 	github.com/tkcrm/modules v0.0.0-20231105124543-ee87e76cef46
 	github.com/tkcrm/mx v0.2.12

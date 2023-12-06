@@ -13,8 +13,8 @@ import (
 
 	browser "github.com/EDDYCJY/fake-useragent"
 	"github.com/sxwebdev/colly/v2"
-	"github.com/sxwebdev/downloaderbot/internal/services/instagram/response"
-	"github.com/sxwebdev/downloaderbot/internal/services/instagram/transform"
+	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"
+	"github.com/sxwebdev/downloaderbot/pkg/instagram/transform"
 )
 
 var (
@@ -31,7 +31,7 @@ var (
 
 // GetPostWithCode lets you to get information about specific Instagram post
 // by providing its unique shortcode
-func (s *Service) GetPostWithCode(code string) (transform.Media, error) {
+func GetPostWithCode(code string) (transform.Media, error) {
 	// TODO: validate code
 
 	URL := fmt.Sprintf("https://www.instagram.com/p/%v/embed/captioned/", code)
@@ -40,7 +40,6 @@ func (s *Service) GetPostWithCode(code string) (transform.Media, error) {
 	var embedResponse = response.EmbedResponse{}
 
 	errChan := make(chan error, 1)
-
 	go func() {
 		collector := colly.NewCollector()
 		collector.SetClient(client)
@@ -92,6 +91,11 @@ func (s *Service) GetPostWithCode(code string) (transform.Media, error) {
 	if embeddedMediaImage != "" {
 		return transform.Media{
 			Url: embeddedMediaImage,
+			Items: []transform.MediaItem{
+				{
+					Url: embeddedMediaImage,
+				},
+			},
 		}, nil
 	}
 
@@ -101,7 +105,7 @@ func (s *Service) GetPostWithCode(code string) (transform.Media, error) {
 }
 
 // ExtractShortcodeFromLink will extract the media shortcode from a URL link or path
-func (s *Service) ExtractShortcodeFromLink(link string) (string, error) {
+func ExtractShortcodeFromLink(link string) (string, error) {
 	values := regexp.MustCompile(`(p|tv|reel|reels\/videos)\/([A-Za-z0-9-_]+)`).FindStringSubmatch(link)
 	if len(values) != 3 {
 		return "", errors.New("couldn't extract the media shortcode from the link")

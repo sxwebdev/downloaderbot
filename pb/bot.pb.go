@@ -20,17 +20,17 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Get
-type GetInstagramLinkRequest struct {
+type MediaItem struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Link string `protobuf:"bytes,1,opt,name=link,proto3" json:"link,omitempty"`
+	Url     string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	IsVideo bool   `protobuf:"varint,2,opt,name=is_video,json=isVideo,proto3" json:"is_video,omitempty"`
 }
 
-func (x *GetInstagramLinkRequest) Reset() {
-	*x = GetInstagramLinkRequest{}
+func (x *MediaItem) Reset() {
+	*x = MediaItem{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_proto_bot_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -38,13 +38,13 @@ func (x *GetInstagramLinkRequest) Reset() {
 	}
 }
 
-func (x *GetInstagramLinkRequest) String() string {
+func (x *MediaItem) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetInstagramLinkRequest) ProtoMessage() {}
+func (*MediaItem) ProtoMessage() {}
 
-func (x *GetInstagramLinkRequest) ProtoReflect() protoreflect.Message {
+func (x *MediaItem) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_bot_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -56,28 +56,36 @@ func (x *GetInstagramLinkRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInstagramLinkRequest.ProtoReflect.Descriptor instead.
-func (*GetInstagramLinkRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use MediaItem.ProtoReflect.Descriptor instead.
+func (*MediaItem) Descriptor() ([]byte, []int) {
 	return file_proto_bot_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetInstagramLinkRequest) GetLink() string {
+func (x *MediaItem) GetUrl() string {
 	if x != nil {
-		return x.Link
+		return x.Url
 	}
 	return ""
 }
 
-type GetInstagramLinkResponse struct {
+func (x *MediaItem) GetIsVideo() bool {
+	if x != nil {
+		return x.IsVideo
+	}
+	return false
+}
+
+// Get
+type GetMediaFromInstagramRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Link string `protobuf:"bytes,1,opt,name=link,proto3" json:"link,omitempty"`
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 }
 
-func (x *GetInstagramLinkResponse) Reset() {
-	*x = GetInstagramLinkResponse{}
+func (x *GetMediaFromInstagramRequest) Reset() {
+	*x = GetMediaFromInstagramRequest{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_proto_bot_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -85,13 +93,13 @@ func (x *GetInstagramLinkResponse) Reset() {
 	}
 }
 
-func (x *GetInstagramLinkResponse) String() string {
+func (x *GetMediaFromInstagramRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetInstagramLinkResponse) ProtoMessage() {}
+func (*GetMediaFromInstagramRequest) ProtoMessage() {}
 
-func (x *GetInstagramLinkResponse) ProtoReflect() protoreflect.Message {
+func (x *GetMediaFromInstagramRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_bot_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -103,36 +111,99 @@ func (x *GetInstagramLinkResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInstagramLinkResponse.ProtoReflect.Descriptor instead.
-func (*GetInstagramLinkResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetMediaFromInstagramRequest.ProtoReflect.Descriptor instead.
+func (*GetMediaFromInstagramRequest) Descriptor() ([]byte, []int) {
 	return file_proto_bot_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetInstagramLinkResponse) GetLink() string {
+func (x *GetMediaFromInstagramRequest) GetUrl() string {
 	if x != nil {
-		return x.Link
+		return x.Url
 	}
 	return ""
+}
+
+type GetMediaFromInstagramResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Caption string       `protobuf:"bytes,1,opt,name=caption,proto3" json:"caption,omitempty"`
+	Items   []*MediaItem `protobuf:"bytes,2,rep,name=items,proto3" json:"items,omitempty"`
+}
+
+func (x *GetMediaFromInstagramResponse) Reset() {
+	*x = GetMediaFromInstagramResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_proto_bot_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetMediaFromInstagramResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMediaFromInstagramResponse) ProtoMessage() {}
+
+func (x *GetMediaFromInstagramResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_bot_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMediaFromInstagramResponse.ProtoReflect.Descriptor instead.
+func (*GetMediaFromInstagramResponse) Descriptor() ([]byte, []int) {
+	return file_proto_bot_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetMediaFromInstagramResponse) GetCaption() string {
+	if x != nil {
+		return x.Caption
+	}
+	return ""
+}
+
+func (x *GetMediaFromInstagramResponse) GetItems() []*MediaItem {
+	if x != nil {
+		return x.Items
+	}
+	return nil
 }
 
 var File_proto_bot_proto protoreflect.FileDescriptor
 
 var file_proto_bot_proto_rawDesc = []byte{
 	0x0a, 0x0f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x62, 0x6f, 0x74, 0x2e, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x12, 0x03, 0x62, 0x6f, 0x74, 0x22, 0x2d, 0x0a, 0x17, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73,
-	0x74, 0x61, 0x67, 0x72, 0x61, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x12, 0x12, 0x0a, 0x04, 0x6c, 0x69, 0x6e, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x04, 0x6c, 0x69, 0x6e, 0x6b, 0x22, 0x2e, 0x0a, 0x18, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74,
-	0x61, 0x67, 0x72, 0x61, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
-	0x65, 0x12, 0x12, 0x0a, 0x04, 0x6c, 0x69, 0x6e, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x04, 0x6c, 0x69, 0x6e, 0x6b, 0x32, 0x5f, 0x0a, 0x0a, 0x42, 0x6f, 0x74, 0x53, 0x65, 0x72, 0x76,
-	0x69, 0x63, 0x65, 0x12, 0x51, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x67,
-	0x72, 0x61, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x12, 0x1c, 0x2e, 0x62, 0x6f, 0x74, 0x2e, 0x47, 0x65,
-	0x74, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x67, 0x72, 0x61, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x62, 0x6f, 0x74, 0x2e, 0x47, 0x65, 0x74, 0x49,
-	0x6e, 0x73, 0x74, 0x61, 0x67, 0x72, 0x61, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x42, 0x06, 0x5a, 0x04, 0x2e, 0x3b, 0x70, 0x62, 0x62, 0x06,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6f, 0x12, 0x03, 0x62, 0x6f, 0x74, 0x22, 0x38, 0x0a, 0x09, 0x4d, 0x65, 0x64, 0x69, 0x61, 0x49,
+	0x74, 0x65, 0x6d, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x03, 0x75, 0x72, 0x6c, 0x12, 0x19, 0x0a, 0x08, 0x69, 0x73, 0x5f, 0x76, 0x69, 0x64, 0x65,
+	0x6f, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x69, 0x73, 0x56, 0x69, 0x64, 0x65, 0x6f,
+	0x22, 0x30, 0x0a, 0x1c, 0x47, 0x65, 0x74, 0x4d, 0x65, 0x64, 0x69, 0x61, 0x46, 0x72, 0x6f, 0x6d,
+	0x49, 0x6e, 0x73, 0x74, 0x61, 0x67, 0x72, 0x61, 0x6d, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75,
+	0x72, 0x6c, 0x22, 0x5f, 0x0a, 0x1d, 0x47, 0x65, 0x74, 0x4d, 0x65, 0x64, 0x69, 0x61, 0x46, 0x72,
+	0x6f, 0x6d, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x67, 0x72, 0x61, 0x6d, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x61, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x63, 0x61, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x24, 0x0a,
+	0x05, 0x69, 0x74, 0x65, 0x6d, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x62,
+	0x6f, 0x74, 0x2e, 0x4d, 0x65, 0x64, 0x69, 0x61, 0x49, 0x74, 0x65, 0x6d, 0x52, 0x05, 0x69, 0x74,
+	0x65, 0x6d, 0x73, 0x32, 0x6e, 0x0a, 0x0a, 0x42, 0x6f, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
+	0x65, 0x12, 0x60, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x4d, 0x65, 0x64, 0x69, 0x61, 0x46, 0x72, 0x6f,
+	0x6d, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x67, 0x72, 0x61, 0x6d, 0x12, 0x21, 0x2e, 0x62, 0x6f, 0x74,
+	0x2e, 0x47, 0x65, 0x74, 0x4d, 0x65, 0x64, 0x69, 0x61, 0x46, 0x72, 0x6f, 0x6d, 0x49, 0x6e, 0x73,
+	0x74, 0x61, 0x67, 0x72, 0x61, 0x6d, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e,
+	0x62, 0x6f, 0x74, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x65, 0x64, 0x69, 0x61, 0x46, 0x72, 0x6f, 0x6d,
+	0x49, 0x6e, 0x73, 0x74, 0x61, 0x67, 0x72, 0x61, 0x6d, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x22, 0x00, 0x42, 0x06, 0x5a, 0x04, 0x2e, 0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x33,
 }
 
 var (
@@ -147,19 +218,21 @@ func file_proto_bot_proto_rawDescGZIP() []byte {
 	return file_proto_bot_proto_rawDescData
 }
 
-var file_proto_bot_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_proto_bot_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_proto_bot_proto_goTypes = []interface{}{
-	(*GetInstagramLinkRequest)(nil),  // 0: bot.GetInstagramLinkRequest
-	(*GetInstagramLinkResponse)(nil), // 1: bot.GetInstagramLinkResponse
+	(*MediaItem)(nil),                     // 0: bot.MediaItem
+	(*GetMediaFromInstagramRequest)(nil),  // 1: bot.GetMediaFromInstagramRequest
+	(*GetMediaFromInstagramResponse)(nil), // 2: bot.GetMediaFromInstagramResponse
 }
 var file_proto_bot_proto_depIdxs = []int32{
-	0, // 0: bot.BotService.GetInstagramLink:input_type -> bot.GetInstagramLinkRequest
-	1, // 1: bot.BotService.GetInstagramLink:output_type -> bot.GetInstagramLinkResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: bot.GetMediaFromInstagramResponse.items:type_name -> bot.MediaItem
+	1, // 1: bot.BotService.GetMediaFromInstagram:input_type -> bot.GetMediaFromInstagramRequest
+	2, // 2: bot.BotService.GetMediaFromInstagram:output_type -> bot.GetMediaFromInstagramResponse
+	2, // [2:3] is the sub-list for method output_type
+	1, // [1:2] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_proto_bot_proto_init() }
@@ -169,7 +242,7 @@ func file_proto_bot_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_proto_bot_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetInstagramLinkRequest); i {
+			switch v := v.(*MediaItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -181,7 +254,19 @@ func file_proto_bot_proto_init() {
 			}
 		}
 		file_proto_bot_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetInstagramLinkResponse); i {
+			switch v := v.(*GetMediaFromInstagramRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_proto_bot_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetMediaFromInstagramResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -199,7 +284,7 @@ func file_proto_bot_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_proto_bot_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
