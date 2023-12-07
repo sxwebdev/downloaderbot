@@ -78,6 +78,7 @@ func main() {
 	)
 
 	ln.ServicesRunner().Register(
+		service.New(service.WithService(rd), service.WithName("redis")),
 		service.New(service.WithService(grpcServer)),
 		service.New(service.WithService(telegramService)),
 		service.New(service.WithService(pingpong.New(logger))),
