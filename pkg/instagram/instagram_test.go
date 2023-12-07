@@ -20,14 +20,14 @@ func TestGetPostWithCode(t *testing.T) {
 			name: "reels",
 			link: "https://www.instagram.com/reel/CzBjgFiISfF/?igshid=MzRlODBiNWFlZA==",
 		},
-		// {
-		// 	name: "photos",
-		// 	link: "https://www.instagram.com/p/Cy3lCHntbF7/?igshid=MzRlODBiNWFlZA==",
-		// },
-		// {
-		// 	name: "videos",
-		// 	link: "https://www.instagram.com/p/C0GixQTodKU/?igshid=MzRlODBiNWFlZA==",
-		// },
+		{
+			name: "photos",
+			link: "https://www.instagram.com/p/C0FBSN8Re1y/?igshid=MzRlODBiNWFlZA==",
+		},
+		{
+			name: "videos",
+			link: "https://www.instagram.com/p/C0GixQTodKU/?igshid=MzRlODBiNWFlZA==",
+		},
 	}
 
 	for _, tc := range tests {

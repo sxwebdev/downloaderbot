@@ -17,7 +17,9 @@ TELEGRAM_BOT_API_TOKEN= # your telegram bot api token
 ## TODO
 
 - [x] GRPC api
-- [x] Download from instagram
+- [x] Download photos from instagram
+- [x] Download videos from instagram
+- [ ] Download reels from instagram
 - [ ] Download from youtube
 - [x] Telegram bot
 - [ ] Telegram inline bot
