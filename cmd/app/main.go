@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/sxwebdev/downloaderbot/internal/api"
 	"github.com/sxwebdev/downloaderbot/internal/config"
+	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/services/telegram"
 	"github.com/tkcrm/mx/cfg"
 	"github.com/tkcrm/mx/launcher"
@@ -38,10 +39,11 @@ func main() {
 	)
 
 	// services
-	telegramService := telegram.New(logger)
+	parserService := parser.New(logger, conf)
+	telegramService := telegram.New(logger, conf, parserService)
 
 	// grpc servers
-	botGrpcServer := api.NewBotGrpcServer()
+	botGrpcServer := api.NewBotGrpcServer(parserService)
 
 	// grpc instance
 	grpcServer := grpc_transport.NewServer(

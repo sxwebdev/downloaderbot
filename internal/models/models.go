@@ -1,6 +1,11 @@
-package transform
+package models
 
-import "github.com/sxwebdev/downloaderbot/pkg/instagram/response"
+import (
+	"bytes"
+	"io"
+
+	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"
+)
 
 // Owner is a single Instagram user who owns the Media
 type Owner struct {
@@ -20,20 +25,25 @@ type MediaItem struct {
 	Type      string `json:"type"`
 	IsVideo   bool   `json:"is_video"`
 	Url       string `json:"url"`
+	Data      []byte `json:"data"`
+}
+
+func (m MediaItem) GetData() io.Reader {
+	return bytes.NewBuffer(m.Data)
 }
 
 // Media which contains a single Instagram post
 type Media struct {
-	Id        string      `json:"id"`
-	Shortcode string      `json:"shortcode"`
-	Type      string      `json:"type"`
-	Comments  uint64      `json:"comments_count"`
-	Likes     uint64      `json:"likes_count"`
-	Caption   string      `json:"caption"`
-	IsVideo   bool        `json:"is_video"`
-	Url       string      `json:"url"`
-	Items     []MediaItem `json:"items"`
-	TakenAt   int64       `json:"taken_at"` // Timestamp
+	Id        string       `json:"id"`
+	Shortcode string       `json:"shortcode"`
+	Type      string       `json:"type"`
+	Comments  uint64       `json:"comments_count"`
+	Likes     uint64       `json:"likes_count"`
+	Caption   string       `json:"caption"`
+	IsVideo   bool         `json:"is_video"`
+	Url       string       `json:"url"`
+	Items     []*MediaItem `json:"items"`
+	TakenAt   int64        `json:"taken_at"` // Timestamp
 }
 
 // FromEmbedResponse will automatically transforms the EmbedResponse to the Media
@@ -51,7 +61,7 @@ func FromEmbedResponse(embed response.EmbedResponse) Media {
 	}
 
 	for _, item := range embed.Media.SliderItems.Edges {
-		media.Items = append(media.Items, MediaItem{
+		media.Items = append(media.Items, &MediaItem{
 			Id:        item.Node.Id,
 			Shortcode: item.Node.Shortcode,
 			Type:      item.Node.Type,

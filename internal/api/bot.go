@@ -3,19 +3,20 @@ package api
 import (
 	"context"
 
+	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/pb"
-	"github.com/sxwebdev/downloaderbot/pkg/instagram"
 	"google.golang.org/grpc"
 )
 
 type grpcServer struct {
-	name string
+	name          string
+	parserService *parser.Service
 
 	pb.UnimplementedBotServiceServer
 }
 
-func NewBotGrpcServer() *grpcServer {
-	return &grpcServer{name: "bot-server"}
+func NewBotGrpcServer(parserService *parser.Service) *grpcServer {
+	return &grpcServer{name: "bot-server", parserService: parserService}
 }
 
 // Name of the service
@@ -27,14 +28,8 @@ func (s *grpcServer) Register(srv *grpc.Server) {
 }
 
 func (s *grpcServer) GetMediaFromInstagram(ctx context.Context, req *pb.GetMediaFromInstagramRequest) (*pb.GetMediaFromInstagramResponse, error) {
-	// extract media code from url
-	code, err := instagram.ExtractShortcodeFromLink(req.Url)
-	if err != nil {
-		return nil, err
-	}
-
-	// get media data from instagram
-	data, err := instagram.GetPostWithCode(ctx, code)
+	// get media data from link
+	data, err := s.parserService.GetMedia(ctx, req.GetUrl())
 	if err != nil {
 		return nil, err
 	}

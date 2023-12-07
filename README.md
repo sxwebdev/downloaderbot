@@ -19,9 +19,10 @@ TELEGRAM_BOT_API_TOKEN= # your telegram bot api token
 - [x] GRPC api
 - [x] Download from instagram
 - [ ] Download from youtube
-- [ ] Telegram bot
+- [x] Telegram bot
 - [ ] Telegram inline bot
 - [ ] Task manager for scheduling jobs
+- [ ] Rate limiter for requests
 - [ ] Docker
 
 ```bash

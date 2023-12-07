@@ -7,33 +7,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
 	browser "github.com/EDDYCJY/fake-useragent"
 	"github.com/sxwebdev/colly/v2"
+	"github.com/sxwebdev/downloaderbot/internal/models"
+	"github.com/sxwebdev/downloaderbot/internal/util"
 	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"
-	"github.com/sxwebdev/downloaderbot/pkg/instagram/transform"
-)
-
-var (
-	client = &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			Dial: (&net.Dialer{
-				Timeout: 5 * time.Second,
-			}).Dial,
-			TLSHandshakeTimeout: 5 * time.Second,
-		},
-	}
 )
 
 // GetPostWithCode lets you to get information about specific Instagram post
 // by providing its unique shortcode
-func GetPostWithCode(ctx context.Context, code string) (*transform.Media, error) {
+func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
 	// validate media code
 	if code == "" {
 		return nil, fmt.Errorf("empty code")
@@ -47,7 +34,7 @@ func GetPostWithCode(ctx context.Context, code string) (*transform.Media, error)
 	errChan := make(chan error, 1)
 	go func() {
 		collector := colly.NewCollector()
-		collector.SetClient(client)
+		collector.SetClient(util.DefaultHttpClient())
 
 		collector.OnHTML("img.EmbeddedMediaImage", func(e *colly.HTMLElement) {
 			embeddedMediaImage = e.Attr("src")
@@ -90,14 +77,14 @@ func GetPostWithCode(ctx context.Context, code string) (*transform.Media, error)
 	// If the method one which is JSON parsing didn't fail
 	if !embedResponse.IsEmpty() {
 		// Transform the Embed response and return
-		resp := transform.FromEmbedResponse(embedResponse)
+		resp := models.FromEmbedResponse(embedResponse)
 		return &resp, nil
 	}
 
 	if embeddedMediaImage != "" {
-		return &transform.Media{
+		return &models.Media{
 			Url: embeddedMediaImage,
-			Items: []transform.MediaItem{
+			Items: []*models.MediaItem{
 				{
 					Url: embeddedMediaImage,
 				},
