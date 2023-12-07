@@ -9,6 +9,7 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/util"
+	"github.com/tkcrm/modules/pkg/limiter"
 	"github.com/tkcrm/mx/logger"
 	"gopkg.in/telebot.v3"
 )
@@ -17,14 +18,21 @@ type handler struct {
 	logger logger.Logger
 
 	parserService *parser.Service
+	lim           limiter.ILimiter
 
 	bot *telebot.Bot
 }
 
-func newHandler(logger logger.Logger, parserService *parser.Service, bot *telebot.Bot) *handler {
+func newHandler(
+	logger logger.Logger,
+	parserService *parser.Service,
+	lim limiter.ILimiter,
+	bot *telebot.Bot,
+) *handler {
 	return &handler{
 		logger:        logger,
 		parserService: parserService,
+		lim:           lim,
 		bot:           bot,
 	}
 }
@@ -43,6 +51,18 @@ func (s *handler) Start(c telebot.Context) error {
 }
 
 func (s *handler) OnText(c telebot.Context) error {
+	l := logger.With(
+		s.logger,
+		"chat_id", c.Message().Chat.ID,
+	)
+
+	l.Infof("user reached limits")
+
+	// check limits
+	if err := s.checkLimit(context.Background(), c.Chat().ID); err != nil {
+		return replyError(c, "you have reached your request limits. come back later")
+	}
+
 	links := util.ExtractLinksFromString(c.Message().Text)
 
 	// Send proper error if text has no link inside
@@ -51,7 +71,7 @@ func (s *handler) OnText(c telebot.Context) error {
 			return nil
 		}
 
-		s.logger.Error("Invalid command,\nPlease send the Instagram post link.")
+		l.Error("Invalid command,\nPlease send the Instagram post link.")
 		return replyError(c, "Invalid command,\nPlease send the Instagram post link.")
 	}
 
@@ -71,7 +91,7 @@ func (s *handler) OnText(c telebot.Context) error {
 			return nil
 		}
 
-		s.logger.Error(err)
+		l.Error(err)
 		return replyError(c, err.Error())
 	}
 
@@ -79,6 +99,17 @@ func (s *handler) OnText(c telebot.Context) error {
 }
 
 func (s *handler) OnQuery(c telebot.Context) error {
+	l := logger.With(
+		s.logger,
+		"chat_id", c.Query().Sender.ID,
+	)
+
+	// check limits
+	if err := s.checkLimit(context.Background(), c.Query().Sender.ID); err != nil {
+		l.Infof("user reached limits")
+		return nil
+	}
+
 	links := util.ExtractLinksFromString(c.Query().Text)
 
 	if len(links) != 1 {
@@ -92,7 +123,7 @@ func (s *handler) OnQuery(c telebot.Context) error {
 
 	data, err := s.parserService.GetMedia(ctx, link)
 	if err != nil {
-		s.logger.Errorf("failed to get media: %v", err)
+		l.Errorf("failed to get media: %v", err)
 		return nil
 	}
 
@@ -104,7 +135,11 @@ func (s *handler) OnQuery(c telebot.Context) error {
 	for i, item := range data.Items {
 		if item.IsVideo {
 			result := &telebot.VideoResult{
-				URL: item.Url,
+				Title:       fmt.Sprintf("video-%d", i),
+				Description: data.Caption,
+				MIME:        "video/mp4",
+				URL:         item.Url,
+				ThumbURL:    item.Url,
 			}
 
 			results[i] = result
@@ -146,7 +181,7 @@ func (s *handler) processLink(link string, msg *telebot.Message) error {
 		mediaItem := data.Items[0]
 		if data.IsVideo {
 			if _, err := s.bot.Send(msg.Chat, &telebot.Video{
-				File: telebot.FromReader(mediaItem.GetData()),
+				File: telebot.FromURL(mediaItem.Url),
 			}); err != nil {
 				return fmt.Errorf("couldn't send the single video: %w", err)
 			}
@@ -154,7 +189,7 @@ func (s *handler) processLink(link string, msg *telebot.Message) error {
 			s.logger.Debugf("sent single video with short code [%v]", mediaItem.Shortcode)
 		} else {
 			if _, err := s.bot.Send(msg.Chat, &telebot.Photo{
-				File: telebot.FromReader(mediaItem.GetData()),
+				File: telebot.FromURL(mediaItem.Url),
 			}); err != nil {
 				return fmt.Errorf("couldn't send the single photo: %w", err)
 			}
@@ -173,17 +208,38 @@ func (s *handler) processLink(link string, msg *telebot.Message) error {
 	return nil
 }
 
+func (s *handler) checkLimit(ctx context.Context, chatID int64) error {
+	// get limiter
+	lm, err := s.lim.GetService(ServiceName)
+	if err != nil {
+		return err
+	}
+
+	// get service limit stats
+	lmStats, err := lm.Get(ctx, limiter.WithCacheKey(strconv.Itoa(int(chatID))))
+	if err != nil {
+		return err
+	}
+
+	// check limit
+	if lmStats.Reached {
+		return fmt.Errorf("%s rate limit is reached", ServiceName)
+	}
+
+	return nil
+}
+
 func generateAlbumFromMedia(items []*models.MediaItem) telebot.Album {
 	var album telebot.Album
 
 	for _, media := range items {
 		if media.IsVideo {
 			album = append(album, &telebot.Video{
-				File: telebot.FromReader(media.GetData()),
+				File: telebot.FromURL(media.Url),
 			})
 		} else {
 			album = append(album, &telebot.Photo{
-				File: telebot.FromReader(media.GetData()),
+				File: telebot.FromURL(media.Url),
 			})
 		}
 	}

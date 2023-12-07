@@ -7,29 +7,32 @@ import (
 
 	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
+	"github.com/tkcrm/modules/pkg/limiter"
 	"github.com/tkcrm/mx/logger"
 	"github.com/tkcrm/mx/service"
 	"gopkg.in/telebot.v3"
 )
 
-const serviceName = "telegram-service"
+const ServiceName = "telegram-service"
 
 type Service struct {
 	logger logger.Logger
 	config *config.Config
 	name   string
 
+	lim           limiter.ILimiter
 	parserService *parser.Service
 
 	bot *telebot.Bot
 }
 
-func New(l logger.Logger, cfg *config.Config, parserService *parser.Service) *Service {
+func New(l logger.Logger, cfg *config.Config, parserService *parser.Service, lim limiter.ILimiter) *Service {
 	return &Service{
-		logger:        logger.With(l, "service", serviceName),
+		logger:        logger.With(l, "service", ServiceName),
 		config:        cfg,
-		name:          serviceName,
+		name:          ServiceName,
 		parserService: parserService,
+		lim:           lim,
 	}
 }
 
@@ -48,7 +51,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.bot = bot
 
 	// init handler
-	handler := newHandler(s.logger, s.parserService, s.bot)
+	handler := newHandler(s.logger, s.parserService, s.lim, s.bot)
 
 	// set command for bot
 	s.bot.Handle("/start", handler.Start)

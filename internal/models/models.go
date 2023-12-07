@@ -1,9 +1,6 @@
 package models
 
 import (
-	"bytes"
-	"io"
-
 	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"
 )
 
@@ -25,11 +22,6 @@ type MediaItem struct {
 	Type      string `json:"type"`
 	IsVideo   bool   `json:"is_video"`
 	Url       string `json:"url"`
-	Data      []byte `json:"data"`
-}
-
-func (m MediaItem) GetData() io.Reader {
-	return bytes.NewBuffer(m.Data)
 }
 
 // Media which contains a single Instagram post

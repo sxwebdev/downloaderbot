@@ -38,6 +38,8 @@ _test
 .env
 .netrc
 
+config
+
 Dockerfile-dev
 dev.Dockerfile
 node_modules

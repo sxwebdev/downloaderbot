@@ -22,10 +22,12 @@ TELEGRAM_BOT_API_TOKEN= # your telegram bot api token
 - [ ] Download reels from instagram
 - [ ] Download from youtube
 - [x] Telegram bot
-- [ ] Telegram inline bot
+- [x] Telegram inline bot
 - [ ] Task manager for scheduling jobs
-- [ ] Rate limiter for requests
-- [ ] Docker
+- [x] Rate limiter for requests
+- [ ] Dockerfile
+- [x] Docker compose
+- [x] File storage (Minio)
 
 ```bash
 # start service

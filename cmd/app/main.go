@@ -3,8 +3,11 @@ package main
 import (
 	"github.com/sxwebdev/downloaderbot/internal/api"
 	"github.com/sxwebdev/downloaderbot/internal/config"
+	"github.com/sxwebdev/downloaderbot/internal/services/files"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/services/telegram"
+	"github.com/tkcrm/modules/pkg/db/dragonfly"
+	"github.com/tkcrm/modules/pkg/limiter"
 	"github.com/tkcrm/mx/cfg"
 	"github.com/tkcrm/mx/launcher"
 	"github.com/tkcrm/mx/logger"
@@ -38,9 +41,31 @@ func main() {
 		launcher.WithAppStartStopLog(true),
 	)
 
+	rd, err := dragonfly.New(ln.Context(), conf.Redis, logger)
+	if err != nil {
+		logger.Fatalf("failed to init redis connection: %s", err)
+	}
+
+	// init limiter
+	lm, err := limiter.New(logger, conf.Limiter, rd.Conn)
+	if err != nil {
+		logger.Fatalf("failed to init limiter: %s", err)
+	}
+
+	if err := lm.RegisterServices(
+		limiter.NewService(telegram.ServiceName, limiter.WithFormattedLimit("10-M")),
+	); err != nil {
+		logger.Fatalf("failed to register limiter services: %s", err)
+	}
+
 	// services
-	parserService := parser.New(logger, conf)
-	telegramService := telegram.New(logger, conf, parserService)
+	filesService, err := files.New(ln.Context(), logger, conf)
+	if err != nil {
+		logger.Fatalf("failed to init files service: %s", err)
+	}
+
+	parserService := parser.New(logger, conf, filesService)
+	telegramService := telegram.New(logger, conf, parserService, lm)
 
 	// grpc servers
 	botGrpcServer := api.NewBotGrpcServer(parserService)

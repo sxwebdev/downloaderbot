@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/sxwebdev/downloaderbot/internal/config"
+	"github.com/sxwebdev/downloaderbot/internal/services/files"
 	"github.com/tkcrm/mx/logger"
 	"github.com/tkcrm/mx/service"
 )
@@ -11,16 +12,18 @@ import (
 const serviceName = "parser-service"
 
 type Service struct {
-	logger logger.Logger
-	config *config.Config
-	name   string
+	logger       logger.Logger
+	config       *config.Config
+	filesService files.IFiles
+	name         string
 }
 
-func New(l logger.Logger, cfg *config.Config) *Service {
+func New(l logger.Logger, cfg *config.Config, filesService files.IFiles) *Service {
 	return &Service{
-		logger: logger.With(l, "service", serviceName),
-		config: cfg,
-		name:   serviceName,
+		logger:       logger.With(l, "service", serviceName),
+		config:       cfg,
+		name:         serviceName,
+		filesService: filesService,
 	}
 }
 

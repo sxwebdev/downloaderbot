@@ -1,0 +1,38 @@
+version: "3.9"
+
+volumes:
+  minio-data1-1:
+  minio-data1-2:
+
+services:
+  # redis
+  redis:
+    image: "redis:latest"
+    restart: on-failure
+    command: ["redis-server", "--bind", "redis", "--port", "6379"]
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - ./config/redis/redis-data:/var/lib/redis
+      - ./config/redis/redis.conf:/usr/local/etc/redis/redis.conf
+
+  # minio
+  minio:
+    image: quay.io/minio/minio
+    command: server --console-address ":9001" http://minio1/data{1...2}
+    restart: on-failure
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: adminpass
+    ports:
+      - "${MINIO_SERVER_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    hostname: minio1
+    volumes:
+      - minio-data1-1:/data1
+      - minio-data1-2:/data2

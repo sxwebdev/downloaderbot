@@ -1,3 +1,7 @@
+-include .env
+
+docker_compose_cli = docker compose -f docker-compose.yml -p downloaderbot
+
 start:
 	go run cmd/app/main.go
 
@@ -19,3 +23,25 @@ genproto:
 	--go_out=:pb \
 	--go-grpc_out=:pb \
 	proto/*.proto
+
+# Infrasctructure
+infra-start:
+	$(docker_compose_cli) up -d $(filter-out $@,$(MAKECMDGOALS))
+
+infra-stop:
+	$(docker_compose_cli) stop $(filter-out $@,$(MAKECMDGOALS))
+
+infra-update:
+	$(docker_compose_cli) pull $(filter-out $@,$(MAKECMDGOALS))
+
+infra-remove:
+	$(docker_compose_cli) down
+
+infra-logs:
+	$(docker_compose_cli) logs -f $(filter-out $@,$(MAKECMDGOALS))
+
+infra-exec:
+	$(docker_compose_cli) exec $(filter-out $@,$(MAKECMDGOALS)) sh
+
+web-minio:
+	open http://localhost:${MINIO_CONSOLE_PORT}/

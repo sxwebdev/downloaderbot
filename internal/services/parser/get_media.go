@@ -3,9 +3,9 @@ package parser
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/util"
@@ -80,18 +80,51 @@ func (s *Service) getMediaData(ctx context.Context, media *models.Media) error {
 	}
 
 	for _, item := range media.Items {
+		uri, err := url.ParseRequestURI(item.Url)
+		if err != nil {
+			return err
+		}
+
+		fileName := filepath.Base(uri.Path)
+
+		// check if file already exists in storage
+		exists, err := s.filesService.Exists(ctx, s.config.S3.BucketName, fileName)
+		if err != nil {
+			return fmt.Errorf("failed to check exists file with name %s error: %w", fileName, err)
+		}
+
+		// use file from storage if it esists
+		if exists {
+			// get public file url
+			fileUrl, err := url.JoinPath(s.config.S3BaseUrl, s.config.S3.BucketName, fileName)
+			if err != nil {
+				return err
+			}
+
+			item.Url = fileUrl
+			continue
+		}
+
+		// download media file
 		resp, err := http.Get(item.Url)
 		if err != nil {
 			return err
 		}
 		defer resp.Body.Close()
 
-		data, err := io.ReadAll(resp.Body)
+		// upload file to storage
+		filePath, err := s.filesService.UploadStream(ctx, s.config.S3.BucketName, fileName, resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to upload file with name %s error: %w", fileName, err)
+		}
+
+		// get public file url
+		fileUrl, err := url.JoinPath(s.config.S3BaseUrl, s.config.S3.BucketName, filePath)
 		if err != nil {
 			return err
 		}
 
-		item.Data = data
+		item.Url = fileUrl
 	}
 
 	return nil
