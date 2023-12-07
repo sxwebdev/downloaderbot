@@ -16,7 +16,7 @@ import (
 
 func getConfig() *config.Config {
 	var config config.Config
-	if err := cfg.Load(&config, cfg.WithEnvPath("../../../../")); err != nil {
+	if err := cfg.LoadForTests(&config, cfg.WithEnvPath("../../../../")); err != nil {
 		logger.New().Fatalf("could not load configuration: %v", err)
 	}
 

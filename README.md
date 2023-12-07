@@ -12,6 +12,12 @@ Environment variables are [here](https://github.com/sxwebdev/downloaderbot/blob/
 ENV_CI=local # dev / stage / prod
 REDIS_ADDR=localhost:6379 # redis server address
 TELEGRAM_BOT_API_TOKEN= # your telegram bot api token
+S3_ACCESS_ID=
+S3_SECRET_KEY=
+S3_REGION=en-1
+S3_ENDPOINT=http://localhost:9050
+S3_BUCKET_NAME=downloaderbot
+S3_BASE_URL=
 ```
 
 ## TODO
