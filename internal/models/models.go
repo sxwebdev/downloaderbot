@@ -17,25 +17,31 @@ type Owner struct {
 // MediaItem contains information about the Instagram post
 // which is similar to the Instagram Media struct
 type MediaItem struct {
-	Id        string `json:"id"`
-	Shortcode string `json:"shortcode"`
-	Type      string `json:"type"`
-	IsVideo   bool   `json:"is_video"`
-	Url       string `json:"url"`
+	Id                string    `json:"id"`
+	Shortcode         string    `json:"shortcode"`
+	Type              MediaType `json:"type"`
+	VideoWithoutAudio bool      `json:"video_without_audio"`
+	Url               string    `json:"url"`
+	Quality           string    `json:"quality"`
+	ContentLength     int64     `json:"content_length"`
+	MimeType          string    `json:"mime_type"`
 }
 
 // Media which contains a single Instagram post
 type Media struct {
-	Id        string       `json:"id"`
-	Shortcode string       `json:"shortcode"`
-	Type      string       `json:"type"`
-	Comments  uint64       `json:"comments_count"`
-	Likes     uint64       `json:"likes_count"`
-	Caption   string       `json:"caption"`
-	IsVideo   bool         `json:"is_video"`
-	Url       string       `json:"url"`
-	Items     []*MediaItem `json:"items"`
-	TakenAt   int64        `json:"taken_at"` // Timestamp
+	Source     MediaSource  `json:"source"`
+	RequestUrl string       `json:"request_url"`
+	Id         string       `json:"id"`
+	Shortcode  string       `json:"shortcode"`
+	Title      string       `json:"title"`
+	Author     string       `json:"author"`
+	Type       string       `json:"type"`
+	Comments   uint64       `json:"comments_count"`
+	Likes      uint64       `json:"likes_count"`
+	Caption    string       `json:"caption"`
+	Url        string       `json:"url"`
+	Items      []*MediaItem `json:"items"`
+	TakenAt    int64        `json:"taken_at"` // Timestamp
 }
 
 // FromEmbedResponse will automatically transforms the EmbedResponse to the Media
@@ -48,16 +54,19 @@ func FromEmbedResponse(embed response.EmbedResponse) Media {
 		Likes:     embed.Media.Likes.Count,
 		Url:       embed.ExtractMediaURL(),
 		TakenAt:   embed.Media.TakenAt.Unix(),
-		IsVideo:   embed.IsVideo(),
 		Caption:   embed.GetCaption(),
 	}
 
 	for _, item := range embed.Media.SliderItems.Edges {
+		mediaType := MediaTypePhoto
+		if item.Node.IsVideo {
+			mediaType = MediaTypeVideo
+		}
+
 		media.Items = append(media.Items, &MediaItem{
 			Id:        item.Node.Id,
 			Shortcode: item.Node.Shortcode,
-			Type:      item.Node.Type,
-			IsVideo:   item.Node.IsVideo,
+			Type:      mediaType,
 			Url:       item.Node.ExtractMediaURL(),
 		})
 	}

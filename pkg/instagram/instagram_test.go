@@ -47,7 +47,7 @@ func TestGetPostWithCode(t *testing.T) {
 			// t.Log(resp.Url)
 
 			for _, item := range resp.Items {
-				if item.IsVideo {
+				if item.Type.IsVideo() {
 					httpClient := &http.Client{Timeout: 5 * time.Second}
 					response, err := httpClient.Head(item.Url)
 					if err != nil {

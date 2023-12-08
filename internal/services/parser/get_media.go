@@ -10,17 +10,24 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/util"
 	"github.com/sxwebdev/downloaderbot/pkg/instagram"
+	"github.com/sxwebdev/downloaderbot/pkg/youtube"
 )
 
-func (s *Service) GetMedia(ctx context.Context, link string) (*models.Media, error) {
+type GetLinkInfoResponse struct {
+	RequestLink string
+	MediaSource models.MediaSource
+	Url         *url.URL
+}
+
+func (s *Service) GetLinkInfo(link string) (GetLinkInfoResponse, error) {
 	if !util.IsValidUrl(link) {
-		return nil, fmt.Errorf("received invalid link")
+		return GetLinkInfoResponse{}, fmt.Errorf("received invalid link")
 	}
 
 	// Convert link to URL object
 	uri, err := url.ParseRequestURI(link)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse link %s: %w", link, err)
+		return GetLinkInfoResponse{}, fmt.Errorf("failed to parse link %s: %w", link, err)
 	}
 
 	var mediaSource models.MediaSource
@@ -28,27 +35,42 @@ func (s *Service) GetMedia(ctx context.Context, link string) (*models.Media, err
 	case "instagram.com", "www.instagram.com":
 		mediaSource = models.MediaSourceInstagram
 	case "youtube.com", "www.youtube.com", "m.youtube.com":
-		mediaSource = models.MediaSourceInstagram
+		mediaSource = models.MediaSourceYoutube
 	default:
-		return nil, fmt.Errorf("can only process links from instagram and youtube not [%s]", uri.Host)
+		return GetLinkInfoResponse{}, fmt.Errorf("can only process links from instagram and youtube not [%s]", uri.Host)
 	}
 
+	return GetLinkInfoResponse{
+		RequestLink: link,
+		MediaSource: mediaSource,
+		Url:         uri,
+	}, nil
+}
+
+func (s *Service) GetMedia(ctx context.Context, linkInfo GetLinkInfoResponse) (*models.Media, error) {
 	var media *models.Media
-	switch mediaSource {
+	var err error
+	switch linkInfo.MediaSource {
 	case models.MediaSourceInstagram:
-		media, err = s.processInstagram(ctx, uri.Path)
+		media, err = s.processInstagram(ctx, linkInfo.Url.Path)
 	case models.MediaSourceYoutube:
-		media, err = s.processYoutube(ctx, uri.Path)
+		media, err = s.processYoutube(ctx, linkInfo.RequestLink)
 	default:
-		return nil, fmt.Errorf("unsupported media source %s", string(mediaSource))
+		return nil, fmt.Errorf("unsupported media source %s", string(linkInfo.MediaSource))
 	}
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get media from source: %w", err)
 	}
 
-	if err := s.getMediaData(ctx, media); err != nil {
-		return nil, fmt.Errorf("failed to get media data: %w", err)
+	media.RequestUrl = linkInfo.RequestLink
+	media.Source = linkInfo.MediaSource
+
+	// save data for instagram source
+	if linkInfo.MediaSource == models.MediaSourceInstagram {
+		if err := s.saveMediaData(ctx, media); err != nil {
+			return nil, fmt.Errorf("failed to get media data: %w", err)
+		}
 	}
 
 	return media, nil
@@ -71,10 +93,21 @@ func (s *Service) processInstagram(ctx context.Context, path string) (*models.Me
 }
 
 func (s *Service) processYoutube(ctx context.Context, path string) (*models.Media, error) {
-	return nil, fmt.Errorf("source is %s not supported yet", string(models.MediaSourceYoutube))
+	// extract media code from url
+	code, err := youtube.ExtractShortcodeFromLink(path)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := youtube.GetVideoByID(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
 
-func (s *Service) getMediaData(ctx context.Context, media *models.Media) error {
+func (s *Service) saveMediaData(ctx context.Context, media *models.Media) error {
 	if len(media.Items) == 0 {
 		return nil
 	}

@@ -26,7 +26,7 @@ S3_BASE_URL=
 - [x] Download photos from instagram
 - [x] Download videos from instagram
 - [ ] Download reels from instagram
-- [ ] Download from youtube
+- [x] Download from youtube
 - [x] Telegram bot
 - [x] Telegram inline bot
 - [ ] Task manager for scheduling jobs

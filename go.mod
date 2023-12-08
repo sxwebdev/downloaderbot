@@ -11,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.47.4
 	github.com/aws/smithy-go v1.19.0
 	github.com/davecgh/go-spew v1.1.1
+	github.com/kkdai/youtube/v2 v2.9.0
 	github.com/sxwebdev/colly/v2 v2.2.1
 	github.com/tkcrm/modules v0.0.0-20231105124543-ee87e76cef46
 	github.com/tkcrm/mx v0.2.12
@@ -39,11 +40,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.21.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bitly/go-simplejson v0.5.1 // indirect
 	github.com/bits-and-blooms/bitset v1.11.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cristalhq/aconfig v0.18.5 // indirect
 	github.com/cristalhq/aconfig/aconfigdotenv v0.17.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/dlclark/regexp2 v1.10.0 // indirect
+	github.com/dop251/goja v0.0.0-20230828202809-3dbe69dd2b8e // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/go-logr/logr v1.3.0 // indirect
@@ -52,9 +56,12 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.16.0 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/google/pprof v0.0.0-20230907193218-d3ddc7976beb // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
