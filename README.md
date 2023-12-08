@@ -31,9 +31,9 @@ S3_BASE_URL=
 - [x] Telegram inline bot
 - [ ] Task manager for scheduling jobs
 - [x] Rate limiter for requests
-- [ ] Dockerfile
+- [x] Dockerfile
 - [x] Docker compose
-- [x] File storage (Minio)
+- [x] S3 File storage (used for inline bot)
 
 ```bash
 # start service

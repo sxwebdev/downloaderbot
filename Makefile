@@ -1,6 +1,7 @@
 -include .env
 
-docker_compose_cli = docker compose -f docker-compose.yml -p downloaderbot
+docker_repo			= $(DOCKER_REPO)
+docker_compose_cli	= docker compose -f docker-compose.yml -p downloaderbot
 
 start:
 	go run cmd/app/main.go
@@ -23,6 +24,14 @@ genproto:
 	--go_out=:pb \
 	--go-grpc_out=:pb \
 	proto/*.proto
+
+# Docker
+docker-build:
+	docker build -t ${docker_repo}:dev .
+
+push-dev: docker-build
+	docker push ${docker_repo}:dev
+	docker image prune -f
 
 # Infrasctructure
 infra-start:

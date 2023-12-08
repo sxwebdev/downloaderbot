@@ -1,0 +1,16 @@
+config
+.build
+.tmp
+.cache
+node_modules
+npm-debug.log
+.git
+.gitignore
+.gitlab-ci.yml
+README.md
+_deploy
+.env
+.env.example
+proto
+go.work
+go.work.sum
