@@ -51,7 +51,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.bot = bot
 
 	// init handler
-	handler := newHandler(s.logger, s.parserService, s.lim, s.bot)
+	handler := newHandler(s.logger, s.config, s.parserService, s.lim, s.bot)
 
 	// set command for bot
 	s.bot.Handle("/start", handler.Start)

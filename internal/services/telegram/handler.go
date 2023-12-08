@@ -5,10 +5,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"mime"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/util"
@@ -20,6 +23,7 @@ import (
 
 type handler struct {
 	logger logger.Logger
+	config *config.Config
 
 	parserService *parser.Service
 	lim           limiter.ILimiter
@@ -29,12 +33,14 @@ type handler struct {
 
 func newHandler(
 	logger logger.Logger,
+	config *config.Config,
 	parserService *parser.Service,
 	lim limiter.ILimiter,
 	bot *telebot.Bot,
 ) *handler {
 	return &handler{
 		logger:        logger,
+		config:        config,
 		parserService: parserService,
 		lim:           lim,
 		bot:           bot,
@@ -217,6 +223,27 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 		}
 
 		fnVideoFormatter := func(item *models.MediaItem) {
+			exts, err := mime.ExtensionsByType(item.MimeType)
+			if err != nil {
+				return
+			}
+
+			var ext string
+			if len(exts) > 0 {
+				ext = exts[len(exts)-1]
+			}
+
+			downloadLink, err := url.JoinPath(
+				s.config.ProxyHttpBaseUrl,
+				"download",
+				item.Quality+"-video"+ext,
+			)
+			if err != nil {
+				return
+			}
+
+			downloadLink += "?redirectUrl=" + url.QueryEscape(item.Url)
+
 			noAudioStr := ""
 			if item.VideoWithoutAudio {
 				noAudioStr = " 🔇 "
@@ -227,7 +254,7 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 					"🔹 *%s*%s [Download](%s)\n`(%s)`\n\n",
 					item.Quality,
 					noAudioStr,
-					item.Url,
+					downloadLink,
 					item.MimeType,
 				)
 			} else {
@@ -236,7 +263,7 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 					item.Quality,
 					noAudioStr,
 					float64(item.ContentLength)/1024/1024,
-					item.Url,
+					downloadLink,
 					item.MimeType,
 				)
 			}

@@ -41,4 +41,5 @@
 | `S3_ENDPOINT`               | ✅        |        |                         |                                                                               |                  |
 | `LIMITER_CACHE_PREFIX`      |          |        |                         |                                                                               |                  |
 | `TELEGRAM_BOT_API_TOKEN`    | ✅        | ✅      |                         | use token for your telegram bot                                               |                  |
+| `PROXY_HTTP_BASE_URL`       | ✅        |        | `http://localhost:9020` |                                                                               |                  |
 | `S3_BASE_URL`               | ✅        |        | `http://localhost:9050` |                                                                               |                  |
