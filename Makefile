@@ -27,10 +27,10 @@ genproto:
 
 # Docker
 docker-build:
-	docker build -t ${docker_repo}:dev .
+	docker build -t ${docker_repo}:latest .
 
-push-dev: docker-build
-	docker push ${docker_repo}:dev
+docker-push: docker-build
+	docker push ${docker_repo}:latest
 	docker image prune -f
 
 # Infrasctructure

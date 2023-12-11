@@ -2,6 +2,8 @@
 
 This bot downloads media files from Instagram and YouTube and uploads them to the telegram bot
 
+Try to chek it: [@mxsaverbot](https://t.me/mxsaverbot)
+
 ## Environment variables
 
 Environment variables are [here](https://github.com/sxwebdev/downloaderbot/blob/master/ENVS.md)
@@ -34,6 +36,7 @@ S3_BASE_URL=
 - [x] Dockerfile
 - [x] Docker compose
 - [x] S3 File storage (used for inline bot)
+- [x] Proxy server for youtube filelinks
 
 ```bash
 # start service

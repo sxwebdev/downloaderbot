@@ -129,7 +129,7 @@ func (s *Service) saveMediaData(ctx context.Context, media *models.Media) error 
 		// use file from storage if it esists
 		if exists {
 			// get public file url
-			fileUrl, err := url.JoinPath(s.config.S3BaseUrl, s.config.S3.BucketName, fileName)
+			fileUrl, err := url.JoinPath(s.config.S3BaseUrl, fileName)
 			if err != nil {
 				return err
 			}
@@ -152,7 +152,7 @@ func (s *Service) saveMediaData(ctx context.Context, media *models.Media) error 
 		}
 
 		// get public file url
-		fileUrl, err := url.JoinPath(s.config.S3BaseUrl, s.config.S3.BucketName, filePath)
+		fileUrl, err := url.JoinPath(s.config.S3BaseUrl, filePath)
 		if err != nil {
 			return err
 		}

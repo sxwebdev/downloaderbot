@@ -36,6 +36,7 @@ _test
 
 ./start*
 .env
+deploy.env
 .netrc
 
 ./config
