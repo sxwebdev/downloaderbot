@@ -160,6 +160,8 @@ func (s *handler) OnQuery(c telebot.Context) error {
 				MIME:        "video/mp4",
 				URL:         item.Url,
 				ThumbURL:    item.Url,
+				Width:       item.Width,
+				Height:      item.Height,
 			}
 
 			results[i] = result
@@ -313,21 +315,38 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 	if len(data.Items) == 1 {
 		mediaItem := data.Items[0]
 		if mediaItem.Type.IsVideo() {
-			if _, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
+			_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
 				File: telebot.FromURL(mediaItem.Url),
-			}); err != nil {
+			})
+			if err != nil && !strings.Contains(err.Error(), "wrong file identifier/HTTP URL specified") {
+				s.logger.Warnf("send single video with params %+v error: %v", mediaItem, err)
 				return fmt.Errorf("couldn't send the single video: %w", err)
 			}
 
-			s.logger.Debugf("sent single video with short code [%v]", mediaItem.Shortcode)
+			if err != nil && strings.Contains(err.Error(), "wrong file identifier/HTTP URL specified") {
+				s.logger.Warnf("try to upload video from reader: %+v", mediaItem)
+				data, err := mediaItem.GetMediaDataByURL()
+				if err != nil {
+					return err
+				}
+				_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
+					File:   telebot.FromReader(data),
+					Width:  mediaItem.Width,
+					Height: mediaItem.Height,
+					MIME:   mediaItem.MimeType,
+				})
+				if err != nil {
+					s.logger.Warnf("send single video from reader with params %+v error: %v", mediaItem, err)
+					return fmt.Errorf("couldn't send the single video with data: %w", err)
+				}
+			}
 		} else {
 			if _, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Photo{
 				File: telebot.FromURL(mediaItem.Url),
 			}); err != nil {
+				s.logger.Warnf("send single photo with params %+v error: %v", mediaItem, err)
 				return fmt.Errorf("couldn't send the single photo: %w", err)
 			}
-
-			s.logger.Debugf("sent single photo with short code [%v]", mediaItem.Shortcode)
 		}
 
 		return nil

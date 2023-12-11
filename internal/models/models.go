@@ -1,6 +1,11 @@
 package models
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+
 	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"
 )
 
@@ -25,6 +30,27 @@ type MediaItem struct {
 	Quality           string    `json:"quality"`
 	ContentLength     int64     `json:"content_length"`
 	MimeType          string    `json:"mime_type"`
+	Width             int       `json:"width"`
+	Height            int       `json:"height"`
+}
+
+func (s MediaItem) GetMediaDataByURL() (io.Reader, error) {
+	if s.Url == "" {
+		return nil, fmt.Errorf("empty url")
+	}
+
+	resp, err := http.Get(s.Url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewBuffer(data), nil
 }
 
 // Media which contains a single Instagram post

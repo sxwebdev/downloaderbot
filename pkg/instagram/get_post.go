@@ -44,7 +44,7 @@ func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
 		collector := colly.NewCollector()
 		collector.SetClient(util.DefaultHttpClient())
 
-		collector.OnHTML("div[data-media-type=GraphImage] img.EmbeddedMediaImage", func(e *colly.HTMLElement) {
+		collector.OnHTML("img.EmbeddedMediaImage", func(e *colly.HTMLElement) {
 			embeddedMediaImage = e.Attr("src")
 		})
 
@@ -191,6 +191,8 @@ func gqlRequest(ctx context.Context, code string) (*models.Media, error) {
 				Shortcode: data.Shortcode,
 				Type:      models.MediaTypeVideo,
 				Url:       data.VideoURL,
+				Width:     data.Dimensions.Width,
+				Height:    data.Dimensions.Height,
 			},
 		},
 	}

@@ -2,10 +2,13 @@ package parser
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/util"
@@ -118,7 +121,15 @@ func (s *Service) saveMediaData(ctx context.Context, media *models.Media) error 
 			return err
 		}
 
-		fileName := filepath.Base(uri.Path)
+		ext := filepath.Ext(uri.Path)
+		fileNameWithoutExt := strings.TrimSuffix(filepath.Base(uri.Path), ext)
+
+		h := md5.New()
+		if _, err := io.WriteString(h, fileNameWithoutExt); err != nil {
+			return err
+		}
+
+		fileName := fmt.Sprintf("%x", h.Sum(nil)) + ext
 
 		// check if file already exists in storage
 		exists, err := s.filesService.Exists(ctx, s.config.S3.BucketName, fileName)

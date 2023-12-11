@@ -21,6 +21,10 @@ func TestGetPostWithCode(t *testing.T) {
 			link: "https://www.instagram.com/reel/CzBjgFiISfF/?igshid=MzRlODBiNWFlZA==",
 		},
 		// {
+		// 	name: "reels",
+		// 	link: "https://www.instagram.com/reel/C0tV4iMvlS_/?igshid=MzRlODBiNWFlZA==",
+		// },
+		// {
 		// 	name: "photos",
 		// 	link: "https://www.instagram.com/p/C0FBSN8Re1y/?igshid=MzRlODBiNWFlZA==",
 		// },
