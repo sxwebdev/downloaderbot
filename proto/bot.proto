@@ -5,17 +5,18 @@ option go_package = ".;pb";
 
 message MediaItem {
   string url = 1;
-  bool is_video = 2;
+  string type = 2;
 }
 
 // Get
-message GetMediaFromInstagramRequest { string url = 1; }
-message GetMediaFromInstagramResponse {
-  string caption = 1;
-  repeated MediaItem items = 2;
+message GetMediaRequest { string url = 1; }
+message GetMediaResponse {
+  string title = 1;
+  string caption = 2;
+  string source = 3;
+  repeated MediaItem items = 4;
 }
 
 service BotService {
-  rpc GetMediaFromInstagram(GetMediaFromInstagramRequest)
-      returns (GetMediaFromInstagramResponse) {};
+  rpc GetMedia(GetMediaRequest) returns (GetMediaResponse) {};
 }

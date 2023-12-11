@@ -33,13 +33,14 @@
 | `GRPC_HEALTH_CHECK_ENABLED` |          |        | `false`                 | allows to enable grpc health checker                                          | `false`          |
 | `GRPC_LOGGER_ENABLED`       |          |        | `false`                 | allows to enable logger. available only for default grpc sevrer               | `false`          |
 | `GRPC_RECOVERY_ENABLED`     |          |        | `false`                 | allows to enable recovery from panics. available only for default grpc sevrer | `false`          |
+| `LIMITER_CACHE_PREFIX`      |          |        |                         |                                                                               |                  |
 | `S3_ACCESS_ID`              | ✅        | ✅      |                         |                                                                               |                  |
 | `S3_SECRET_KEY`             | ✅        | ✅      |                         |                                                                               |                  |
 | `S3_BUCKET_NAME`            | ✅        |        |                         |                                                                               |                  |
 | `S3_TOKEN`                  |          | ✅      |                         | used only for amazon s3                                                       |                  |
 | `S3_REGION`                 | ✅        |        |                         |                                                                               | `ru-1`           |
 | `S3_ENDPOINT`               | ✅        |        |                         |                                                                               |                  |
-| `LIMITER_CACHE_PREFIX`      |          |        |                         |                                                                               |                  |
-| `TELEGRAM_BOT_API_TOKEN`    | ✅        | ✅      |                         | use token for your telegram bot                                               |                  |
-| `PROXY_HTTP_BASE_URL`       | ✅        |        | `http://localhost:9020` |                                                                               |                  |
 | `S3_BASE_URL`               | ✅        |        | `http://localhost:9050` |                                                                               |                  |
+| `TELEGRAM_BOT_API_TOKEN`    | ✅        | ✅      |                         | use token for your telegram bot                                               |                  |
+| `PROXY_HTTP_ENABLED`        |          |        | `false`                 | enable proxy server for downloading media from youtube                        |                  |
+| `PROXY_HTTP_BASE_URL`       | ✅        |        | `http://localhost:9020` |                                                                               |                  |

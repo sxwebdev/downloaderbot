@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/pb"
 	"google.golang.org/grpc"
@@ -29,7 +28,7 @@ func (s *grpcServer) Register(srv *grpc.Server) {
 	pb.RegisterBotServiceServer(srv, s)
 }
 
-func (s *grpcServer) GetMediaFromInstagram(ctx context.Context, req *pb.GetMediaFromInstagramRequest) (*pb.GetMediaFromInstagramResponse, error) {
+func (s *grpcServer) GetMedia(ctx context.Context, req *pb.GetMediaRequest) (*pb.GetMediaResponse, error) {
 	// get link info
 	linkInfo, err := s.parserService.GetLinkInfo(req.GetUrl())
 	if err != nil {
@@ -43,16 +42,18 @@ func (s *grpcServer) GetMediaFromInstagram(ctx context.Context, req *pb.GetMedia
 	}
 
 	// define response
-	resp := &pb.GetMediaFromInstagramResponse{
+	resp := &pb.GetMediaResponse{
+		Title:   data.Title,
 		Caption: data.Caption,
+		Source:  string(data.Source),
 		Items:   make([]*pb.MediaItem, len(data.Items)),
 	}
 
 	// set pb media items
 	for index, item := range data.Items {
 		resp.Items[index] = &pb.MediaItem{
-			Url:     item.Url,
-			IsVideo: item.Type == models.MediaTypeVideo,
+			Url:  item.Url,
+			Type: string(item.Type),
 		}
 	}
 

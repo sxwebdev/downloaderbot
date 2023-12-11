@@ -12,7 +12,7 @@ import (
 
 // IFiles files interface
 type IFiles interface {
-	List(ctx context.Context, bucket string) ([]string, error)
+	List(ctx context.Context, bucket string) ([]s3.ListItem, error)
 	Download(ctx context.Context, bucket, filePath string) ([]byte, error)
 	Upload(ctx context.Context, bucket, fileName string, content []byte) (string, error)
 	UploadStream(ctx context.Context, bucketName, filePath string, reader io.Reader) (string, error)

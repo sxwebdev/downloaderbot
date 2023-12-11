@@ -77,6 +77,10 @@ func New(l logger.ExtendedLogger, cfg *config.Config) *Service {
 func (s Service) Name() string { return s.name }
 
 func (s *Service) Start(ctx context.Context) error {
+	if !s.config.ProxyHttpEnabled {
+		return nil
+	}
+
 	errChan := make(chan error, 1)
 
 	// start http server
@@ -94,6 +98,10 @@ func (s *Service) Start(ctx context.Context) error {
 }
 
 func (s Service) Stop(ctx context.Context) error {
+	if !s.config.ProxyHttpEnabled || s.fiber == nil {
+		return nil
+	}
+
 	return s.fiber.ShutdownWithContext(ctx)
 }
 

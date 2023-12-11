@@ -228,21 +228,25 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 				return
 			}
 
-			var ext string
-			if len(exts) > 0 {
-				ext = exts[len(exts)-1]
-			}
+			downloadLink := item.Url
 
-			downloadLink, err := url.JoinPath(
-				s.config.ProxyHttpBaseUrl,
-				"download",
-				item.Quality+"-video"+ext,
-			)
-			if err != nil {
-				return
-			}
+			if s.config.ProxyHttpEnabled {
+				var ext string
+				if len(exts) > 0 {
+					ext = exts[len(exts)-1]
+				}
 
-			downloadLink += "?redirectUrl=" + url.QueryEscape(item.Url)
+				downloadLink, err = url.JoinPath(
+					s.config.ProxyHttpBaseUrl,
+					"download",
+					item.Quality+"-video"+ext,
+				)
+				if err != nil {
+					return
+				}
+
+				downloadLink += "?redirectUrl=" + url.QueryEscape(item.Url)
+			}
 
 			noAudioStr := ""
 			if item.VideoWithoutAudio {

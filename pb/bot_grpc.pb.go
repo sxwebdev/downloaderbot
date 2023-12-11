@@ -19,14 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	BotService_GetMediaFromInstagram_FullMethodName = "/bot.BotService/GetMediaFromInstagram"
+	BotService_GetMedia_FullMethodName = "/bot.BotService/GetMedia"
 )
 
 // BotServiceClient is the client API for BotService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BotServiceClient interface {
-	GetMediaFromInstagram(ctx context.Context, in *GetMediaFromInstagramRequest, opts ...grpc.CallOption) (*GetMediaFromInstagramResponse, error)
+	GetMedia(ctx context.Context, in *GetMediaRequest, opts ...grpc.CallOption) (*GetMediaResponse, error)
 }
 
 type botServiceClient struct {
@@ -37,9 +37,9 @@ func NewBotServiceClient(cc grpc.ClientConnInterface) BotServiceClient {
 	return &botServiceClient{cc}
 }
 
-func (c *botServiceClient) GetMediaFromInstagram(ctx context.Context, in *GetMediaFromInstagramRequest, opts ...grpc.CallOption) (*GetMediaFromInstagramResponse, error) {
-	out := new(GetMediaFromInstagramResponse)
-	err := c.cc.Invoke(ctx, BotService_GetMediaFromInstagram_FullMethodName, in, out, opts...)
+func (c *botServiceClient) GetMedia(ctx context.Context, in *GetMediaRequest, opts ...grpc.CallOption) (*GetMediaResponse, error) {
+	out := new(GetMediaResponse)
+	err := c.cc.Invoke(ctx, BotService_GetMedia_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (c *botServiceClient) GetMediaFromInstagram(ctx context.Context, in *GetMed
 // All implementations must embed UnimplementedBotServiceServer
 // for forward compatibility
 type BotServiceServer interface {
-	GetMediaFromInstagram(context.Context, *GetMediaFromInstagramRequest) (*GetMediaFromInstagramResponse, error)
+	GetMedia(context.Context, *GetMediaRequest) (*GetMediaResponse, error)
 	mustEmbedUnimplementedBotServiceServer()
 }
 
@@ -58,8 +58,8 @@ type BotServiceServer interface {
 type UnimplementedBotServiceServer struct {
 }
 
-func (UnimplementedBotServiceServer) GetMediaFromInstagram(context.Context, *GetMediaFromInstagramRequest) (*GetMediaFromInstagramResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetMediaFromInstagram not implemented")
+func (UnimplementedBotServiceServer) GetMedia(context.Context, *GetMediaRequest) (*GetMediaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMedia not implemented")
 }
 func (UnimplementedBotServiceServer) mustEmbedUnimplementedBotServiceServer() {}
 
@@ -74,20 +74,20 @@ func RegisterBotServiceServer(s grpc.ServiceRegistrar, srv BotServiceServer) {
 	s.RegisterService(&BotService_ServiceDesc, srv)
 }
 
-func _BotService_GetMediaFromInstagram_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetMediaFromInstagramRequest)
+func _BotService_GetMedia_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMediaRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BotServiceServer).GetMediaFromInstagram(ctx, in)
+		return srv.(BotServiceServer).GetMedia(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BotService_GetMediaFromInstagram_FullMethodName,
+		FullMethod: BotService_GetMedia_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BotServiceServer).GetMediaFromInstagram(ctx, req.(*GetMediaFromInstagramRequest))
+		return srv.(BotServiceServer).GetMedia(ctx, req.(*GetMediaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -100,8 +100,8 @@ var BotService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*BotServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetMediaFromInstagram",
-			Handler:    _BotService_GetMediaFromInstagram_Handler,
+			MethodName: "GetMedia",
+			Handler:    _BotService_GetMedia_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

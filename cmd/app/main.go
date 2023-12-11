@@ -3,12 +3,14 @@ package main
 import (
 	"github.com/sxwebdev/downloaderbot/internal/api"
 	"github.com/sxwebdev/downloaderbot/internal/config"
+	"github.com/sxwebdev/downloaderbot/internal/daemons"
 	"github.com/sxwebdev/downloaderbot/internal/proxy"
 	"github.com/sxwebdev/downloaderbot/internal/services/files"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/services/telegram"
 	"github.com/tkcrm/modules/pkg/db/dragonfly"
 	"github.com/tkcrm/modules/pkg/limiter"
+	"github.com/tkcrm/modules/pkg/taskmanager"
 	"github.com/tkcrm/mx/cfg"
 	"github.com/tkcrm/mx/launcher"
 	"github.com/tkcrm/mx/logger"
@@ -68,6 +70,16 @@ func main() {
 	proxyService := proxy.New(logger, conf)
 	parserService := parser.New(logger, conf, filesService)
 	telegramService := telegram.New(logger, conf, parserService, lm)
+	tm := taskmanager.New(logger, taskmanager.Config{
+		UniqueTasks: true,
+		RedisConfig: taskmanager.RedisConfig{
+			Addr:     conf.Redis.Addr,
+			Username: conf.Redis.User,
+			Password: conf.Redis.Password,
+			DB:       conf.Redis.DbIndex,
+		},
+	})
+	daemons := daemons.New(logger, conf, tm, filesService)
 
 	// grpc servers
 	botGrpcServer := api.NewBotGrpcServer(parserService)
@@ -81,9 +93,11 @@ func main() {
 
 	ln.ServicesRunner().Register(
 		service.New(service.WithService(rd), service.WithName("redis")),
+		service.New(service.WithService(tm)),
 		service.New(service.WithService(grpcServer)),
 		service.New(service.WithService(proxyService)),
 		service.New(service.WithService(telegramService)),
+		service.New(service.WithService(daemons)),
 		service.New(service.WithService(pingpong.New(logger))),
 	)
 

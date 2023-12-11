@@ -29,7 +29,7 @@ S3_BASE_URL=
 - [x] Download from youtube
 - [x] Telegram bot
 - [x] Telegram inline bot
-- [ ] Task manager for scheduling jobs
+- [x] Task manager for scheduling jobs
 - [x] Rate limiter for requests
 - [x] Dockerfile
 - [x] Docker compose

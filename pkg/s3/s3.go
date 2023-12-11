@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
+	"github.com/tkcrm/modules/pkg/utils"
 	"github.com/tkcrm/mx/logger"
 )
 
@@ -66,27 +67,40 @@ func New(ctx context.Context, l logger.Logger, cfg Config) (*S3, error) {
 	return s, nil
 }
 
+type ListItem struct {
+	Path         string
+	LastModified *time.Time
+	Size         *int64
+}
+
 // List ...
-func (s *S3) List(ctx context.Context, bucketName string) ([]string, error) {
+func (s *S3) List(ctx context.Context, bucketName string) ([]ListItem, error) {
 	if bucketName == "" {
 		return nil, ErrEmptyBucketName
 	}
 
-	res, err := s.svc.ListObjects(ctx, &s3.ListObjectsInput{
-		Bucket: aws.String(bucketName),
+	res, err := s.svc.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:  aws.String(bucketName),
+		MaxKeys: utils.Pointer(int32(2000)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("ListObjects error: %w", err)
 	}
 
-	result := make([]string, 0, len(res.Contents))
+	items := []ListItem{}
 	for _, value := range res.Contents {
-		if value.Key != nil && *value.Key != "" && filepath.Ext(*value.Key) != "" {
-			result = append(result, *value.Key)
+		if value.Key == nil || *value.Key == "" {
+			continue
 		}
+
+		items = append(items, ListItem{
+			Path:         *value.Key,
+			LastModified: value.LastModified,
+			Size:         value.Size,
+		})
 	}
 
-	return result, nil
+	return items, nil
 }
 
 // Upload file to s3 bucket
