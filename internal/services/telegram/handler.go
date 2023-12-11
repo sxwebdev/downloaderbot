@@ -155,7 +155,7 @@ func (s *handler) OnQuery(c telebot.Context) error {
 	for i, item := range data.Items {
 		if item.Type.IsVideo() {
 			result := &telebot.VideoResult{
-				Title:       fmt.Sprintf("video-%d", i),
+				Title:       fmt.Sprintf("video-%d", i+1),
 				Description: data.Caption,
 				MIME:        "video/mp4",
 				URL:         item.Url,

@@ -25,7 +25,7 @@ S3_BASE_URL=
 - [x] GRPC api
 - [x] Download photos from instagram
 - [x] Download videos from instagram
-- [ ] Download reels from instagram
+- [x] Download reels from instagram
 - [x] Download from youtube
 - [x] Telegram bot
 - [x] Telegram inline bot
