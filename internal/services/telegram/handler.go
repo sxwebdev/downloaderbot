@@ -314,6 +314,10 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 	// process instagram response
 	if len(data.Items) == 1 {
 		mediaItem := data.Items[0]
+		if mediaItem.ContentLength > 50*1024*1024 {
+			return fmt.Errorf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB")
+		}
+
 		if mediaItem.Type.IsVideo() {
 			_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
 				File: telebot.FromURL(mediaItem.Url),
@@ -329,15 +333,26 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 				if err != nil {
 					return err
 				}
-				_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
-					File:   telebot.FromReader(data),
-					Width:  mediaItem.Width,
-					Height: mediaItem.Height,
-					MIME:   mediaItem.MimeType,
-				})
-				if err != nil {
-					s.logger.Warnf("send single video from reader with params %+v error: %v", mediaItem, err)
-					return fmt.Errorf("couldn't send the single video with data: %w", err)
+
+				var retryCount int
+				for {
+					_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
+						File:   telebot.FromReader(data),
+						Width:  mediaItem.Width,
+						Height: mediaItem.Height,
+						MIME:   mediaItem.MimeType,
+					})
+					if err != nil {
+						retryCount++
+						s.logger.Warnf("send single video from reader with params %+v error: %v", mediaItem, err)
+						if retryCount == 3 {
+							return fmt.Errorf("couldn't send the single video with data: %w", err)
+						}
+						time.Sleep(time.Millisecond * 300)
+						continue
+					}
+
+					break
 				}
 			}
 		} else {
