@@ -31,7 +31,7 @@ func main() {
 	)
 
 	conf := new(config.Config)
-	if err := cfg.Load(conf, cfg.WithVersion(version)); err != nil {
+	if err := cfg.Load(conf); err != nil {
 		logger.Fatalf("failed to load configuration: %s", err)
 	}
 

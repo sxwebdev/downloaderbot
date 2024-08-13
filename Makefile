@@ -12,9 +12,6 @@ build:
 watch:
 	air -c .air.toml
 
-markdown:
-	go run -v ./cmd/app --markdown --file ENVS.md
-
 grpcui:
 	grpcui --plaintext localhost:9000
 

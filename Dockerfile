@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.22.6-alpine AS builder
 
 RUN apk add --no-cache git make
 
@@ -15,7 +15,7 @@ COPY . .
 
 RUN go build -o ./ -v -ldflags "-s -w -X main.version=${APP_VERSION}" ./cmd/app
 
-FROM alpine:3.18
+FROM alpine:3.20.2
 
 RUN apk add --no-cache iputils busybox-extras curl
 
