@@ -1,4 +1,4 @@
-FROM golang:1.22.6-alpine AS builder
+FROM golang:1.23.0-alpine AS builder
 
 RUN apk add --no-cache git make
 
@@ -13,7 +13,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o ./ -v -ldflags "-s -w -X main.version=${APP_VERSION}" ./cmd/app
+RUN go build -o ./service -v -ldflags "-s -w -X main.version=${APP_VERSION}" ./cmd/app
 
 FROM alpine:3.20.2
 
@@ -23,7 +23,7 @@ RUN adduser -D -g '' appuser
 
 WORKDIR /app
 
-COPY --from=builder --chown=appuser:appuser /app/app .
+COPY --from=builder --chown=appuser:appuser /app/service .
 
 COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip .
 ENV TZ=Europe/Moscow
@@ -31,4 +31,4 @@ ENV ZONEINFO=/app/zoneinfo.zip
 
 USER appuser
 
-ENTRYPOINT ["/app/app"]
+ENTRYPOINT ["/app/service"]

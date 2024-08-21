@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"mime"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -367,9 +368,11 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 		return nil
 	}
 
-	_, err = s.bot.SendAlbum(tgCtx.Message().Chat, generateAlbumFromMedia(data.Items))
-	if err != nil {
-		return fmt.Errorf("couldn't send the nested media: %w", err)
+	for chunk := range slices.Chunk(data.Items, 10) {
+		_, err = s.bot.SendAlbum(tgCtx.Message().Chat, generateAlbumFromMedia(chunk))
+		if err != nil {
+			return fmt.Errorf("couldn't send the nested media: %w", err)
+		}
 	}
 
 	return nil
