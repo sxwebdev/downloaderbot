@@ -9,11 +9,13 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/util"
 	"github.com/sxwebdev/downloaderbot/pkg/instagram"
 	"github.com/sxwebdev/downloaderbot/pkg/youtube"
+	"golang.org/x/sync/errgroup"
 )
 
 type GetLinkInfoResponse struct {
@@ -37,7 +39,7 @@ func (s *Service) GetLinkInfo(link string) (GetLinkInfoResponse, error) {
 	switch uri.Host {
 	case "instagram.com", "www.instagram.com":
 		mediaSource = models.MediaSourceInstagram
-	case "youtube.com", "www.youtube.com", "m.youtube.com":
+	case "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be":
 		mediaSource = models.MediaSourceYoutube
 	default:
 		return GetLinkInfoResponse{}, fmt.Errorf("can only process links from instagram and youtube not [%s]", uri.Host)
@@ -115,61 +117,78 @@ func (s *Service) saveMediaData(ctx context.Context, media *models.Media) error 
 		return nil
 	}
 
+	eg, egCtx := errgroup.WithContext(ctx)
+
 	for _, item := range media.Items {
-		uri, err := url.ParseRequestURI(item.Url)
-		if err != nil {
-			return err
-		}
+		eg.Go(func() error {
+			return s.saveMediaItem(egCtx, item)
+		})
+	}
 
-		ext := filepath.Ext(uri.Path)
-		fileNameWithoutExt := strings.TrimSuffix(filepath.Base(uri.Path), ext)
+	if err := eg.Wait(); err != nil {
+		return err
+	}
 
-		h := md5.New()
-		if _, err := io.WriteString(h, fileNameWithoutExt); err != nil {
-			return err
-		}
+	return nil
+}
 
-		fileName := fmt.Sprintf("%x", h.Sum(nil)) + ext
+func (s *Service) saveMediaItem(ctx context.Context, item *models.MediaItem) error {
+	uri, err := url.ParseRequestURI(item.Url)
+	if err != nil {
+		return err
+	}
 
-		// check if file already exists in storage
-		exists, err := s.filesService.Exists(ctx, s.config.S3.BucketName, fileName)
-		if err != nil {
-			return fmt.Errorf("failed to check exists file with name %s error: %w", fileName, err)
-		}
+	ext := filepath.Ext(uri.Path)
+	fileNameWithoutExt := strings.TrimSuffix(filepath.Base(uri.Path), ext)
 
-		// use file from storage if it esists
-		if exists {
-			// get public file url
-			fileUrl, err := url.JoinPath(s.config.S3BaseUrl, fileName)
-			if err != nil {
-				return err
-			}
+	h := md5.New()
+	if _, err := io.WriteString(h, fileNameWithoutExt); err != nil {
+		return err
+	}
 
-			item.Url = fileUrl
-			continue
-		}
+	fileName := fmt.Sprintf("%x", h.Sum(nil)) + ext
 
-		// download media file
-		resp, err := http.Get(item.Url)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
+	// check if file already exists in storage
+	exists, err := s.filesService.Exists(ctx, s.config.S3.BucketName, fileName)
+	if err != nil {
+		return fmt.Errorf("failed to check exists file with name %s error: %w", fileName, err)
+	}
 
-		// upload file to storage
-		filePath, err := s.filesService.UploadStream(ctx, s.config.S3.BucketName, fileName, resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to upload file with name %s error: %w", fileName, err)
-		}
-
+	// use file from storage if it esists
+	if exists {
 		// get public file url
-		fileUrl, err := url.JoinPath(s.config.S3BaseUrl, filePath)
+		fileUrl, err := url.JoinPath(s.config.S3BaseUrl, fileName)
 		if err != nil {
 			return err
 		}
 
 		item.Url = fileUrl
+		return nil
 	}
+
+	// download media file
+	resp, err := http.Get(item.Url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// upload file to storage
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	filePath, err := s.filesService.UploadStream(ctx, s.config.S3.BucketName, fileName, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to upload file with name %s error: %w", fileName, err)
+	}
+
+	// get public file url
+	fileUrl, err := url.JoinPath(s.config.S3BaseUrl, filePath)
+	if err != nil {
+		return err
+	}
+
+	item.Url = fileUrl
 
 	return nil
 }
