@@ -16,6 +16,7 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/util"
+	"github.com/sxwebdev/downloaderbot/pkg/retry"
 	"github.com/tkcrm/modules/pkg/limiter"
 	"github.com/tkcrm/modules/pkg/utils"
 	"github.com/tkcrm/mx/logger"
@@ -205,177 +206,14 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 		return fmt.Errorf("empty data items")
 	}
 
-	// process youtube response
-	if data.Source == models.MediaSourceYoutube {
-		// send thumbnail
-		if data.Url != "" {
-			if _, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Photo{
-				File: telebot.FromURL(data.Url),
-			}, telebot.ModeMarkdown); err != nil {
-				return fmt.Errorf("couldn't send text message: %w", err)
-			}
-		}
-
-		var respText string
-		if data.Title != "" {
-			respText += "*" + data.Title + "*\n\n"
-		}
-
-		if data.Caption != "" {
-			respText += data.Caption + "\n\n"
-		}
-
-		fnVideoFormatter := func(item *models.MediaItem) {
-			exts, err := mime.ExtensionsByType(item.MimeType)
-			if err != nil {
-				return
-			}
-
-			downloadLink := item.Url
-
-			if s.config.ProxyHttpEnabled {
-				var ext string
-				if len(exts) > 0 {
-					ext = exts[len(exts)-1]
-				}
-
-				downloadLink, err = url.JoinPath(
-					s.config.ProxyHttpBaseUrl,
-					"download",
-					item.Quality+"-video"+ext,
-				)
-				if err != nil {
-					return
-				}
-
-				downloadLink += "?redirectUrl=" + url.QueryEscape(item.Url)
-			}
-
-			noAudioStr := ""
-			if item.VideoWithoutAudio {
-				noAudioStr = " 🔇 "
-			}
-
-			if item.ContentLength == 0 {
-				respText += fmt.Sprintf(
-					"🔹 *%s*%s [Download](%s)\n`(%s)`\n\n",
-					item.Quality,
-					noAudioStr,
-					downloadLink,
-					item.MimeType,
-				)
-			} else {
-				respText += fmt.Sprintf(
-					"🔹 *%s*%s [Download %.2fMB](%s)\n`(%s)`\n\n",
-					item.Quality,
-					noAudioStr,
-					float64(item.ContentLength)/1024/1024,
-					downloadLink,
-					item.MimeType,
-				)
-			}
-		}
-
-		fnAudioFormatter := func(item *models.MediaItem) {
-			respText += fmt.Sprintf(
-				"🔸 %s [Download %.2fMB](%s) `(%s)`\n",
-				item.Quality,
-				float64(item.ContentLength)/1024/1024,
-				item.Url,
-				item.MimeType,
-			)
-		}
-
-		videoItems := utils.FilterArray(data.Items, func(v *models.MediaItem) bool {
-			return v.Type == "video"
-		})
-
-		audioItems := utils.FilterArray(data.Items, func(v *models.MediaItem) bool {
-			return v.Type == "audio"
-		})
-
-		if len(videoItems) > 0 {
-			respText += "🎥 *Video*\n\n"
-			for _, item := range videoItems {
-				fnVideoFormatter(item)
-			}
-			respText += "\n"
-		}
-
-		if len(audioItems) > 0 {
-			respText += "🎶 *Audio*\n\n"
-			for _, item := range audioItems {
-				fnAudioFormatter(item)
-			}
-		}
-
-		return replyText(tgCtx, respText)
+	switch data.Source {
+	case models.MediaSourceYoutube:
+		return s.processYoutube(tgCtx, data)
+	case models.MediaSourceInstagram:
+		return s.processInstagram(tgCtx, data)
+	default:
+		return fmt.Errorf("unsupported media source: %s", data.Source)
 	}
-
-	// process instagram response
-	if len(data.Items) == 1 {
-		mediaItem := data.Items[0]
-		if mediaItem.ContentLength > 50*1024*1024 {
-			return fmt.Errorf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB")
-		}
-
-		if mediaItem.Type.IsVideo() {
-			_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
-				File: telebot.FromURL(mediaItem.Url),
-			})
-			if err != nil && !strings.Contains(err.Error(), "wrong file identifier/HTTP URL specified") {
-				s.logger.Warnf("send single video with params %+v error: %v", mediaItem, err)
-				return fmt.Errorf("couldn't send the single video: %w", err)
-			}
-
-			if err != nil && strings.Contains(err.Error(), "wrong file identifier/HTTP URL specified") {
-				s.logger.Warnf("try to upload video from reader: %+v", mediaItem)
-				data, err := mediaItem.GetMediaDataByURL()
-				if err != nil {
-					return err
-				}
-
-				var retryCount int
-				for {
-					_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
-						File:   telebot.FromReader(data),
-						Width:  mediaItem.Width,
-						Height: mediaItem.Height,
-						MIME:   mediaItem.MimeType,
-					})
-					if err != nil {
-						retryCount++
-						s.logger.Warnf("send single video from reader with params %+v error: %v", mediaItem, err)
-						if retryCount == 3 {
-							return fmt.Errorf("couldn't send the single video with data: %w", err)
-						}
-						time.Sleep(time.Millisecond * 300)
-						continue
-					}
-
-					break
-				}
-			}
-		} else {
-			if _, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Photo{
-				File: telebot.FromURL(mediaItem.Url),
-			}); err != nil {
-				s.logger.Warnf("send single photo with params %+v error: %v", mediaItem, err)
-				return fmt.Errorf("couldn't send the single photo: %w", err)
-			}
-		}
-
-		return nil
-	}
-
-	for chunk := range slices.Chunk(data.Items, 10) {
-		_, err = s.bot.SendAlbum(tgCtx.Message().Chat, generateAlbumFromMedia(chunk))
-		if err != nil {
-			return fmt.Errorf("couldn't send the nested media: %w", err)
-		}
-	}
-
-	return nil
 }
 
 func (s *handler) checkLimit(ctx context.Context, chatID int64) error {
@@ -456,6 +294,181 @@ func replyText(tgCtx telebot.Context, text string) error {
 			return fmt.Errorf("couldn't send text message: %w", err)
 		}
 		writer.Reset()
+	}
+
+	return nil
+}
+
+func (s *handler) processYoutube(tgCtx telebot.Context, data *models.Media) error {
+	// send thumbnail
+	if data.Url != "" {
+		if _, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Photo{
+			File: telebot.FromURL(data.Url),
+		}, telebot.ModeMarkdown); err != nil {
+			return fmt.Errorf("couldn't send text message: %w", err)
+		}
+	}
+
+	var respText string
+	if data.Title != "" {
+		respText += "*" + data.Title + "*\n\n"
+	}
+
+	if data.Caption != "" {
+		respText += data.Caption + "\n\n"
+	}
+
+	fnVideoFormatter := func(item *models.MediaItem) {
+		exts, err := mime.ExtensionsByType(item.MimeType)
+		if err != nil {
+			return
+		}
+
+		downloadLink := item.Url
+
+		if s.config.ProxyHttpEnabled {
+			var ext string
+			if len(exts) > 0 {
+				ext = exts[len(exts)-1]
+			}
+
+			downloadLink, err = url.JoinPath(
+				s.config.ProxyHttpBaseUrl,
+				"download",
+				item.Quality+"-video"+ext,
+			)
+			if err != nil {
+				return
+			}
+
+			downloadLink += "?redirectUrl=" + url.QueryEscape(item.Url)
+		}
+
+		noAudioStr := ""
+		if item.VideoWithoutAudio {
+			noAudioStr = " 🔇 "
+		}
+
+		if item.ContentLength == 0 {
+			respText += fmt.Sprintf(
+				"🔹 *%s*%s [Download](%s)\n`(%s)`\n\n",
+				item.Quality,
+				noAudioStr,
+				downloadLink,
+				item.MimeType,
+			)
+		} else {
+			respText += fmt.Sprintf(
+				"🔹 *%s*%s [Download %.2fMB](%s)\n`(%s)`\n\n",
+				item.Quality,
+				noAudioStr,
+				float64(item.ContentLength)/1024/1024,
+				downloadLink,
+				item.MimeType,
+			)
+		}
+	}
+
+	fnAudioFormatter := func(item *models.MediaItem) {
+		respText += fmt.Sprintf(
+			"🔸 %s [Download %.2fMB](%s) `(%s)`\n",
+			item.Quality,
+			float64(item.ContentLength)/1024/1024,
+			item.Url,
+			item.MimeType,
+		)
+	}
+
+	videoItems := utils.FilterArray(data.Items, func(v *models.MediaItem) bool {
+		return v.Type == "video"
+	})
+
+	audioItems := utils.FilterArray(data.Items, func(v *models.MediaItem) bool {
+		return v.Type == "audio"
+	})
+
+	if len(videoItems) > 0 {
+		respText += "🎥 *Video*\n\n"
+		for _, item := range videoItems {
+			fnVideoFormatter(item)
+		}
+		respText += "\n"
+	}
+
+	if len(audioItems) > 0 {
+		respText += "🎶 *Audio*\n\n"
+		for _, item := range audioItems {
+			fnAudioFormatter(item)
+		}
+	}
+
+	return replyText(tgCtx, respText)
+}
+
+func (s *handler) processInstagram(tgCtx telebot.Context, data *models.Media) error {
+	if len(data.Items) == 1 {
+		mediaItem := data.Items[0]
+		if mediaItem.ContentLength > 50*1024*1024 {
+			return fmt.Errorf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB")
+		}
+
+		if mediaItem.Type.IsVideo() {
+			_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
+				File: telebot.FromURL(mediaItem.Url),
+			})
+			if err != nil && !strings.Contains(err.Error(), "wrong file identifier/HTTP URL specified") {
+				s.logger.Warnf("send single video with params %+v error: %v", mediaItem, err)
+				return fmt.Errorf("couldn't send the single video: %w", err)
+			}
+
+			if err != nil && strings.Contains(err.Error(), "wrong file identifier/HTTP URL specified") {
+				s.logger.Warnf("try to upload video from reader: %+v", mediaItem)
+				mediaData, err := mediaItem.GetMediaDataByURL()
+				if err != nil {
+					return err
+				}
+
+				if err := retry.New().Do(func() error {
+					_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
+						File:   telebot.FromReader(mediaData),
+						Width:  mediaItem.Width,
+						Height: mediaItem.Height,
+						MIME:   mediaItem.MimeType,
+					})
+					return err
+				}); err != nil {
+					return fmt.Errorf("couldn't send the single video from reader: %w", err)
+				}
+
+			}
+		} else {
+			if err := retry.New().Do(func() error {
+				_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Photo{
+					File: telebot.FromURL(mediaItem.Url),
+				})
+				return err
+			}); err != nil {
+				return fmt.Errorf("couldn't send the single photo: %w", err)
+			}
+		}
+
+		if data.Caption != "" {
+			if err := retry.New().Do(func() error {
+				_, err := s.bot.Reply(tgCtx.Message(), data.Caption)
+				return err
+			}); err != nil {
+				s.logger.Warnf("send caption with params %+v error: %v", mediaItem, err)
+			}
+		}
+
+		return nil
+	}
+
+	for chunk := range slices.Chunk(data.Items, 10) {
+		_, err := s.bot.SendAlbum(tgCtx.Message().Chat, generateAlbumFromMedia(chunk))
+		if err != nil {
+			return fmt.Errorf("couldn't send the nested media: %w", err)
+		}
 	}
 
 	return nil
