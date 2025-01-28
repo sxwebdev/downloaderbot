@@ -27,6 +27,6 @@ func (s MediaType) IsVideo() bool {
 	return s == MediaTypeVideo
 }
 
-func (s MediaType) IsPhone() bool {
+func (s MediaType) IsPhoto() bool {
 	return s == MediaTypePhoto
 }

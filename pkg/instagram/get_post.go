@@ -32,7 +32,7 @@ func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
 
 	var embeddedMediaImage string
 	var caption string
-	var embedResponse = response.EmbedResponse{}
+	embedResponse := response.EmbedResponse{}
 
 	// try to use graphql request
 	if resp, err := gqlRequest(ctx, code); err == nil {
@@ -114,7 +114,8 @@ func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
 			Url:     embeddedMediaImage,
 			Items: []*models.MediaItem{
 				{
-					Url: embeddedMediaImage,
+					Type: models.MediaTypePhoto,
+					Url:  embeddedMediaImage,
 				},
 			},
 		}, nil

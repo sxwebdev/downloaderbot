@@ -42,7 +42,7 @@ func (s *Service) Start(ctx context.Context) error {
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token:  s.config.TelegramBotApiToken,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
-		//Verbose: s.config.EnvCI == "local",
+		// Verbose: s.config.EnvCI == "local",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create telegram bot instance: %w", err)

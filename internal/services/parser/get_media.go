@@ -72,11 +72,11 @@ func (s *Service) GetMedia(ctx context.Context, linkInfo GetLinkInfoResponse) (*
 	media.Source = linkInfo.MediaSource
 
 	// save data for instagram source
-	if linkInfo.MediaSource == models.MediaSourceInstagram {
-		if err := s.saveMediaData(ctx, media); err != nil {
-			return nil, fmt.Errorf("failed to get media data: %w", err)
-		}
-	}
+	// if linkInfo.MediaSource == models.MediaSourceInstagram {
+	// 	if err := s.saveMediaData(ctx, media); err != nil {
+	// 		return nil, fmt.Errorf("failed to get media data: %w", err)
+	// 	}
+	// }
 
 	return media, nil
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
@@ -20,6 +21,7 @@ import (
 	"github.com/tkcrm/modules/pkg/limiter"
 	"github.com/tkcrm/modules/pkg/utils"
 	"github.com/tkcrm/mx/logger"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/telebot.v3"
 )
 
@@ -107,6 +109,8 @@ func (s *handler) OnText(tgCtx telebot.Context) error {
 		return replyError(tgCtx, err.Error())
 	}
 
+	l.Infof("successfully processed the link: %s", link)
+
 	return nil
 }
 
@@ -149,13 +153,18 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		return nil
 	}
 
+	data.Items = lo.Filter(data.Items, func(v *models.MediaItem, idx int) bool {
+		return v.Url != ""
+	})
+
 	if len(data.Items) == 0 {
 		return nil
 	}
 
 	results := make(telebot.Results, len(data.Items))
 	for i, item := range data.Items {
-		if item.Type.IsVideo() {
+		switch item.Type {
+		case models.MediaTypeVideo:
 			result := &telebot.VideoResult{
 				Title:       fmt.Sprintf("video-%d", i+1),
 				Description: data.Caption,
@@ -167,13 +176,15 @@ func (s *handler) OnQuery(c telebot.Context) error {
 			}
 
 			results[i] = result
-		} else {
+		case models.MediaTypePhoto:
 			result := &telebot.PhotoResult{
 				URL:      item.Url,
 				ThumbURL: item.Url, // required for photos
 			}
 
 			results[i] = result
+		default:
+			continue
 		}
 
 		// needed to set a unique string ID for each result
@@ -189,7 +200,7 @@ func (s *handler) OnQuery(c telebot.Context) error {
 // Gets list of links from user message text
 // and processes each one of them one by one.
 func (s *handler) processLink(tgCtx telebot.Context, link string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
 	linkInfo, err := s.parserService.GetLinkInfo(link)
@@ -235,24 +246,6 @@ func (s *handler) checkLimit(ctx context.Context, chatID int64) error {
 	}
 
 	return nil
-}
-
-func generateAlbumFromMedia(items []*models.MediaItem) telebot.Album {
-	var album telebot.Album
-
-	for _, media := range items {
-		if media.Type.IsVideo() {
-			album = append(album, &telebot.Video{
-				File: telebot.FromURL(media.Url),
-			})
-		} else {
-			album = append(album, &telebot.Photo{
-				File: telebot.FromURL(media.Url),
-			})
-		}
-	}
-
-	return album
 }
 
 func replyError(c telebot.Context, text string) error {
@@ -406,45 +399,72 @@ func (s *handler) processYoutube(tgCtx telebot.Context, data *models.Media) erro
 }
 
 func (s *handler) processInstagram(tgCtx telebot.Context, data *models.Media) error {
+	// filter items
+	data.Items = lo.Filter(data.Items, func(v *models.MediaItem, idx int) bool {
+		return v.Url != ""
+	})
+
+	if len(data.Items) == 0 {
+		return fmt.Errorf("empty data items")
+	}
+
+	if err := s.sendContentToInstagram(tgCtx, data); err != nil {
+		return fmt.Errorf("couldn't send the content to Instagram: %w", err)
+	}
+
+	if data.Caption != "" {
+		if err := retry.New().Do(func() error {
+			_, err := s.bot.Reply(tgCtx.Message(), data.Caption, telebot.ModeHTML)
+			return err
+		}); err != nil {
+			s.logger.Warnf("send caption with params error: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *handler) sendContentToInstagram(tgCtx telebot.Context, data *models.Media) error {
 	if len(data.Items) == 1 {
 		mediaItem := data.Items[0]
 		if mediaItem.ContentLength > 50*1024*1024 {
-			return fmt.Errorf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB")
+			text := fmt.Sprintf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB\ntry to download it from [here](%s)", mediaItem.Url)
+			if err := retry.New().Do(func() error {
+				_, err := s.bot.Reply(tgCtx.Message(), text, telebot.ModeMarkdown)
+				return err
+			}); err != nil {
+				s.logger.Error(err)
+			}
+			return nil
 		}
 
+		mediaData, err := mediaItem.GetMediaDataByURL()
+		if err != nil {
+			return err
+		}
+
+		// handle video
 		if mediaItem.Type.IsVideo() {
-			_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
-				File: telebot.FromURL(mediaItem.Url),
-			})
-			if err != nil && !strings.Contains(err.Error(), "wrong file identifier/HTTP URL specified") {
-				s.logger.Warnf("send single video with params %+v error: %v", mediaItem, err)
+			if err := retry.New().Do(func() error {
+				_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
+					File:   telebot.FromReader(mediaData),
+					Width:  mediaItem.Width,
+					Height: mediaItem.Height,
+					MIME:   mediaItem.MimeType,
+				})
+				return err
+			}); err != nil {
 				return fmt.Errorf("couldn't send the single video: %w", err)
 			}
+		}
 
-			if err != nil && strings.Contains(err.Error(), "wrong file identifier/HTTP URL specified") {
-				s.logger.Warnf("try to upload video from reader: %+v", mediaItem)
-				mediaData, err := mediaItem.GetMediaDataByURL()
-				if err != nil {
-					return err
-				}
-
-				if err := retry.New().Do(func() error {
-					_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
-						File:   telebot.FromReader(mediaData),
-						Width:  mediaItem.Width,
-						Height: mediaItem.Height,
-						MIME:   mediaItem.MimeType,
-					})
-					return err
-				}); err != nil {
-					return fmt.Errorf("couldn't send the single video from reader: %w", err)
-				}
-
-			}
-		} else {
+		// handle photo
+		if mediaItem.Type.IsPhoto() {
 			if err := retry.New().Do(func() error {
 				_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Photo{
-					File: telebot.FromURL(mediaItem.Url),
+					File:   telebot.FromReader(mediaData),
+					Width:  mediaItem.Width,
+					Height: mediaItem.Height,
 				})
 				return err
 			}); err != nil {
@@ -452,24 +472,57 @@ func (s *handler) processInstagram(tgCtx telebot.Context, data *models.Media) er
 			}
 		}
 
-		if data.Caption != "" {
-			if err := retry.New().Do(func() error {
-				_, err := s.bot.Reply(tgCtx.Message(), data.Caption)
-				return err
-			}); err != nil {
-				s.logger.Warnf("send caption with params %+v error: %v", mediaItem, err)
-			}
-		}
-
 		return nil
 	}
 
 	for chunk := range slices.Chunk(data.Items, 10) {
-		_, err := s.bot.SendAlbum(tgCtx.Message().Chat, generateAlbumFromMedia(chunk))
+		album, err := generateAlbumFromMedia(chunk)
 		if err != nil {
-			return fmt.Errorf("couldn't send the nested media: %w", err)
+			return fmt.Errorf("couldn't generate the album: %w", err)
+		}
+
+		if _, err := s.bot.SendAlbum(tgCtx.Message().Chat, album); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+func generateAlbumFromMedia(items []*models.MediaItem) (telebot.Album, error) {
+	album := util.NewSliceWithLength[telebot.Inputtable](len(items))
+
+	eg := errgroup.Group{}
+
+	for idx, media := range items {
+		eg.Go(func() error {
+			mediaData, err := media.GetMediaDataByURL()
+			if err != nil {
+				return err
+			}
+
+			if media.Type.IsVideo() {
+				album.AddToIndex(idx, &telebot.Video{
+					File:   telebot.FromReader(mediaData),
+					Width:  media.Width,
+					Height: media.Height,
+					MIME:   media.MimeType,
+				})
+			} else {
+				album.AddToIndex(idx, &telebot.Photo{
+					File:   telebot.FromReader(mediaData),
+					Width:  media.Width,
+					Height: media.Height,
+				})
+			}
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+
+	return album.GetAll(), nil
 }

@@ -53,8 +53,8 @@ func New(ctx context.Context, l logger.Logger, cfg Config) (*S3, error) {
 		config.WithRegion(cfg.Region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessID, cfg.SecretKey, cfg.Token)),
 		config.WithEndpointResolverWithOptions(customEndpointResolver),
-		//config.WithLogger(logger.New(logger.WithConsoleColored(true), logger.WithLogFormat(logger.FORMAT_CONSOLE))),
-		//config.WithClientLogMode(aws.LogRetries|aws.LogRequest),
+		// config.WithLogger(logger.New(logger.WithConsoleColored(true), logger.WithLogFormat(logger.FORMAT_CONSOLE))),
+		// config.WithClientLogMode(aws.LogRetries|aws.LogRequest),
 	)
 	if err != nil {
 		return nil, err
