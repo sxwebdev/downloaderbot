@@ -60,7 +60,7 @@ func TestGetPostWithCode(t *testing.T) {
 
 					fmt.Printf("Content-Length: %d \n", response.ContentLength)
 				}
-				//t.Log(item.Url)
+				// t.Log(item.Url)
 			}
 		})
 	}
