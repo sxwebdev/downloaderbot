@@ -15,6 +15,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/kkdai/youtube/v2 v2.10.2
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
 	github.com/sxwebdev/colly/v2 v2.2.1
 	github.com/tkcrm/modules v0.0.0-20240902184010-10fa96e1e356
