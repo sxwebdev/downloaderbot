@@ -1,5 +1,3 @@
-version: "3.9"
-
 volumes:
   minio-data1-1:
   minio-data1-2:

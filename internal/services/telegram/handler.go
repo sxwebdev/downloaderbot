@@ -123,8 +123,6 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		"chat_id", c.Query().Sender.ID,
 	)
 
-	metrics.InlineRequests.Inc()
-
 	// check limits
 	if err := s.checkLimit(context.Background(), c.Query().Sender.ID); err != nil {
 		l.Infof("user reached limits")
@@ -165,6 +163,8 @@ func (s *handler) OnQuery(c telebot.Context) error {
 	if len(data.Items) == 0 {
 		return nil
 	}
+
+	metrics.InlineRequests.Inc()
 
 	results := make(telebot.Results, len(data.Items))
 	for i, item := range data.Items {
