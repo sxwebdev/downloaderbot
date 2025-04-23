@@ -1,6 +1,6 @@
 -include .env
 
-docker_repo			= $(DOCKER_REPO)
+docker_repo					= $(DOCKER_REPO)
 docker_compose_cli	= docker compose -f docker-compose.yml -p downloaderbot
 
 start:

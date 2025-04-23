@@ -1,6 +1,6 @@
 module github.com/sxwebdev/downloaderbot
 
-go 1.23.2
+go 1.24.2
 
 require (
 	github.com/EDDYCJY/fake-useragent v0.2.0
@@ -14,6 +14,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/kkdai/youtube/v2 v2.10.2
+	github.com/prometheus/client_golang v1.20.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
@@ -87,7 +88,6 @@ require (
 	github.com/nlnwa/whatwg-url v0.5.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect

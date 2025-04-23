@@ -14,6 +14,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/sxwebdev/downloaderbot/internal/config"
+	"github.com/sxwebdev/downloaderbot/internal/metrics"
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/util"
@@ -70,6 +71,8 @@ func (s *handler) OnText(tgCtx telebot.Context) error {
 		"chat_id", tgCtx.Message().Chat.ID,
 	)
 
+	metrics.PrivateMessageRequests.Inc()
+
 	l.Infof("request from user: %s", tgCtx.Message().Text)
 
 	// check limits
@@ -119,6 +122,8 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		s.logger,
 		"chat_id", c.Query().Sender.ID,
 	)
+
+	metrics.InlineRequests.Inc()
 
 	// check limits
 	if err := s.checkLimit(context.Background(), c.Query().Sender.ID); err != nil {
