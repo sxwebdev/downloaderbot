@@ -1,4 +1,4 @@
-FROM golang:1.24.2-alpine AS builder
+FROM golang:1.25.3-alpine AS builder
 
 RUN apk add --no-cache git make
 
@@ -7,15 +7,18 @@ WORKDIR /app
 COPY go.mod .
 COPY go.sum .
 
-ENV APP_VERSION=0.1.0
+# Define build arguments for version, commit, and date.
+ARG VERSION="unknown"
+ARG COMMIT_HASH="unknown"
+ARG BUILD_DATE="unknown"
 
 RUN go mod download
 
 COPY . .
 
-RUN go build -o ./service -v -ldflags "-s -w -X main.version=${APP_VERSION}" ./cmd/app
+RUN go build -trimpath -ldflags="-w -s -X 'main.version=${VERSION}' -X 'main.commitHash=${COMMIT_HASH}' -X 'main.buildDate=${BUILD_DATE}'" -o bin/downloaderbot ./cmd/app
 
-FROM alpine:3.20.2
+FROM alpine:latest
 
 RUN apk add --no-cache iputils busybox-extras curl
 
@@ -23,7 +26,7 @@ RUN adduser -D -g '' appuser
 
 WORKDIR /app
 
-COPY --from=builder --chown=appuser:appuser /app/service .
+COPY --from=builder --chown=appuser:appuser /app/bin/downloaderbot .
 
 COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip .
 ENV TZ=Europe/Moscow
@@ -31,4 +34,4 @@ ENV ZONEINFO=/app/zoneinfo.zip
 
 USER appuser
 
-ENTRYPOINT ["/app/service"]
+ENTRYPOINT ["/app/downloaderbot"]

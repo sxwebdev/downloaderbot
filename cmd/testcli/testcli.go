@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,14 +9,14 @@ import (
 	"os"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func main() {
-	app := &cli.App{
+	app := &cli.Command{
 		Name:  "Instagram Reel Downloader",
 		Usage: "Download Instagram Reels",
-		Action: func(c *cli.Context) error {
+		Action: func(ctx context.Context, c *cli.Command) error {
 			// Укажите ваш логин и пароль от Instagram
 			username := "your_username"
 			password := "your_password"
@@ -43,7 +44,7 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
+	err := app.Run(context.Background(), os.Args)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}

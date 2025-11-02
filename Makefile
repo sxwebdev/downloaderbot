@@ -23,12 +23,12 @@ genproto:
 	proto/*.proto
 
 # Docker
-docker-build:
-	docker build -t ${docker_repo}:latest .
-
-docker-push: docker-build
-	docker push ${docker_repo}:latest
-	docker image prune -f
+docker-push:
+	docker buildx build --platform linux/amd64 --push \
+		--build-arg VERSION=`git describe --tags --abbrev=0 || echo "0.0.0"` \
+		--build-arg COMMIT_HASH=`git rev-parse --short HEAD` \
+		--build-arg BUILD_DATE=`date -u +'%Y-%m-%dT%H:%M:%SZ'` \
+		-t ${docker_repo}:latest .
 
 # Infrasctructure
 infra-start:
