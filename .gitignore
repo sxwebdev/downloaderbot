@@ -51,3 +51,5 @@ internal/store/temp
 
 go.work
 go.work.sum
+
+config.yaml

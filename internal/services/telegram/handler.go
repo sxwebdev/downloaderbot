@@ -146,6 +146,7 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		return fmt.Errorf("get link info error: %w", err)
 	}
 
+	// YouTube inline queries are not supported due to large file sizes
 	if linkInfo.MediaSource == models.MediaSourceYoutube {
 		return nil
 	}
@@ -205,7 +206,7 @@ func (s *handler) OnQuery(c telebot.Context) error {
 // Gets list of links from user message text
 // and processes each one of them one by one.
 func (s *handler) processLink(tgCtx telebot.Context, link string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	linkInfo, err := s.parserService.GetLinkInfo(link)
@@ -222,14 +223,13 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 		return fmt.Errorf("empty data items")
 	}
 
-	switch data.Source {
-	case models.MediaSourceYoutube:
+	// YouTube has special handling with quality options
+	if data.Source == models.MediaSourceYoutube {
 		return s.processYoutube(tgCtx, data)
-	case models.MediaSourceInstagram:
-		return s.processInstagram(tgCtx, data)
-	default:
-		return fmt.Errorf("unsupported media source: %s", data.Source)
 	}
+
+	// All other sources use the generic media handler (like Instagram)
+	return s.processGenericMedia(tgCtx, data)
 }
 
 func (s *handler) checkLimit(ctx context.Context, chatID int64) error {
@@ -404,7 +404,12 @@ func (s *handler) processYoutube(tgCtx telebot.Context, data *models.Media) erro
 }
 
 func (s *handler) processInstagram(tgCtx telebot.Context, data *models.Media) error {
-	// filter items
+	return s.processGenericMedia(tgCtx, data)
+}
+
+// processGenericMedia handles media from all sources (Instagram, TikTok, Twitter, etc.)
+func (s *handler) processGenericMedia(tgCtx telebot.Context, data *models.Media) error {
+	// filter items with valid URLs
 	data.Items = lo.Filter(data.Items, func(v *models.MediaItem, idx int) bool {
 		return v.Url != ""
 	})
@@ -413,13 +418,22 @@ func (s *handler) processInstagram(tgCtx telebot.Context, data *models.Media) er
 		return fmt.Errorf("empty data items")
 	}
 
-	if err := s.sendContentToInstagram(tgCtx, data); err != nil {
-		return fmt.Errorf("couldn't send the content to Instagram: %w", err)
+	if err := s.sendMediaContent(tgCtx, data); err != nil {
+		return fmt.Errorf("couldn't send the content: %w", err)
 	}
 
+	// Send title and caption if available
+	var captionText string
+	if data.Title != "" {
+		captionText = "*" + escapeMarkdown(data.Title) + "*\n\n"
+	}
 	if data.Caption != "" {
+		captionText += data.Caption
+	}
+
+	if captionText != "" {
 		if err := retry.New().Do(func() error {
-			_, err := s.bot.Reply(tgCtx.Message(), data.Caption, telebot.ModeHTML)
+			_, err := s.bot.Reply(tgCtx.Message(), captionText, telebot.ModeMarkdown)
 			return err
 		}); err != nil {
 			s.logger.Warnf("send caption with params error: %v", err)
@@ -429,7 +443,18 @@ func (s *handler) processInstagram(tgCtx telebot.Context, data *models.Media) er
 	return nil
 }
 
-func (s *handler) sendContentToInstagram(tgCtx telebot.Context, data *models.Media) error {
+// escapeMarkdown escapes special Markdown characters
+func escapeMarkdown(text string) string {
+	replacer := strings.NewReplacer(
+		"*", "\\*",
+		"_", "\\_",
+		"`", "\\`",
+		"[", "\\[",
+	)
+	return replacer.Replace(text)
+}
+
+func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) error {
 	if len(data.Items) == 1 {
 		mediaItem := data.Items[0]
 		if mediaItem.ContentLength > 50*1024*1024 {

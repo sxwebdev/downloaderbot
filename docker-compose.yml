@@ -6,19 +6,16 @@ services:
   # redis
   redis:
     image: "redis:latest"
-    restart: on-failure
+    restart: unless-stopped
     command: ["redis-server", "--bind", "redis", "--port", "6379"]
     ports:
       - "${REDIS_PORT}:6379"
-    volumes:
-      - ./config/redis/redis-data:/var/lib/redis
-      - ./config/redis/redis.conf:/usr/local/etc/redis/redis.conf
 
   # minio
   minio:
     image: quay.io/minio/minio
     command: server --console-address ":9001" http://minio1/data{1...2}
-    restart: on-failure
+    restart: unless-stopped
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: adminpass

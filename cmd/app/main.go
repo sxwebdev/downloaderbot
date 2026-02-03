@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/sxwebdev/downloaderbot/internal/api"
 	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/sxwebdev/downloaderbot/internal/daemons"
@@ -11,7 +13,6 @@ import (
 	"github.com/tkcrm/modules/pkg/db/dragonfly"
 	"github.com/tkcrm/modules/pkg/limiter"
 	"github.com/tkcrm/modules/pkg/taskmanager"
-	"github.com/tkcrm/mx/cfg"
 	"github.com/tkcrm/mx/launcher"
 	"github.com/tkcrm/mx/logger"
 	"github.com/tkcrm/mx/service"
@@ -20,57 +21,77 @@ import (
 )
 
 var (
-	appName = "downloaderbot"
-	version = "local"
+	appName    = "downloaderbot"
+	version    = "local"
+	commitHash = "unknown"
+	buildDate  = "unknown"
 )
 
-func main() {
-	logger := logger.NewExtended(
-		logger.WithAppVersion(version),
-		logger.WithAppName(appName),
-	)
+func getVersion() string { return version + "-" + commitHash }
 
-	conf := new(config.Config)
-	if err := cfg.Load(conf); err != nil {
-		logger.Fatalf("failed to load configuration: %s", err)
+func defaultLoggerOpts() []logger.Option {
+	return []logger.Option{
+		logger.WithAppName(appName),
+		logger.WithAppVersion(getVersion()),
 	}
+}
+
+func main() {
+	l := logger.NewExtended(defaultLoggerOpts()...)
+	if err := run(l); err != nil {
+		l.Fatalf("application stopped with error: %s", err)
+	}
+}
+
+func run(l logger.ExtendedLogger) error {
+	conf, err := config.Load[config.Config]([]string{"config.yaml"}, "")
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	loggerOpts := append(defaultLoggerOpts(), logger.WithConfig(conf.Log))
+
+	l = logger.WithExtended(logger.NewExtended(loggerOpts...))
+	defer func() {
+		_ = l.Sync()
+	}()
 
 	ln := launcher.New(
 		launcher.WithName(appName),
-		launcher.WithLogger(logger),
+		launcher.WithLogger(l),
 		launcher.WithVersion(version),
 		launcher.WithRunnerServicesSequence(launcher.RunnerServicesSequenceFifo),
 		launcher.WithOpsConfig(conf.Ops),
 		launcher.WithAppStartStopLog(true),
 	)
 
-	rd, err := dragonfly.New(ln.Context(), conf.Redis, logger)
+	rd, err := dragonfly.New(ln.Context(), conf.Redis, l)
 	if err != nil {
-		logger.Fatalf("failed to init redis connection: %s", err)
+		return fmt.Errorf("failed to init redis connection: %w", err)
 	}
 
 	// init limiter
-	lm, err := limiter.New(logger, conf.Limiter, rd.Conn)
+	lm, err := limiter.New(l, conf.Limiter, rd.Conn)
 	if err != nil {
-		logger.Fatalf("failed to init limiter: %s", err)
+		return fmt.Errorf("failed to init limiter: %w", err)
 	}
 
 	if err := lm.RegisterServices(
 		limiter.NewService(telegram.ServiceName, limiter.WithFormattedLimit("10-M")),
 	); err != nil {
-		logger.Fatalf("failed to register limiter services: %s", err)
+		return fmt.Errorf("failed to register limiter services: %w", err)
 	}
 
 	// services
-	filesService, err := files.New(ln.Context(), logger, conf)
+	filesService, err := files.New(ln.Context(), l, conf)
 	if err != nil {
-		logger.Fatalf("failed to init files service: %s", err)
+		return fmt.Errorf("failed to init files service: %w", err)
 	}
 
-	proxyService := proxy.New(logger, conf)
-	parserService := parser.New(logger, conf, filesService)
-	telegramService := telegram.New(logger, conf, parserService, lm)
-	tm := taskmanager.New(logger, taskmanager.Config{
+	proxyService := proxy.New(l, conf)
+	parserService := parser.New(l, conf, filesService)
+	telegramService := telegram.New(l, conf, parserService, lm)
+	tm := taskmanager.New(l, taskmanager.Config{
 		UniqueTasks: true,
 		RedisConfig: taskmanager.RedisConfig{
 			Addr:     conf.Redis.Addr,
@@ -79,29 +100,26 @@ func main() {
 			DB:       conf.Redis.DbIndex,
 		},
 	})
-	daemons := daemons.New(logger, conf, tm, filesService)
-
+	daemons := daemons.New(l, conf, tm, filesService)
 	// grpc servers
 	botGrpcServer := api.NewBotGrpcServer(parserService)
 
 	// grpc instance
 	grpcServer := grpc_transport.NewServer(
-		grpc_transport.WithLogger(logger),
+		grpc_transport.WithLogger(l),
 		grpc_transport.WithConfig(conf.Grpc),
 		grpc_transport.WithServices(botGrpcServer),
 	)
 
 	ln.ServicesRunner().Register(
+		service.New(service.WithService(pingpong.New(l))),
 		service.New(service.WithService(rd), service.WithName("redis")),
 		service.New(service.WithService(tm)),
 		service.New(service.WithService(grpcServer)),
 		service.New(service.WithService(proxyService)),
 		service.New(service.WithService(telegramService)),
 		service.New(service.WithService(daemons)),
-		service.New(service.WithService(pingpong.New(logger))),
 	)
 
-	if err := ln.Run(); err != nil {
-		logger.Fatal(err)
-	}
+	return ln.Run()
 }
