@@ -24,7 +24,7 @@ var (
 	appName    = "downloaderbot"
 	version    = "local"
 	commitHash = "unknown"
-	buildDate  = "unknown"
+	// buildDate  = "unknown"
 )
 
 func getVersion() string { return version + "-" + commitHash }
@@ -44,7 +44,7 @@ func main() {
 }
 
 func run(l logger.ExtendedLogger) error {
-	conf, err := config.Load[config.Config]([]string{"config.yaml"}, "")
+	conf, err := config.Load[config.Config]([]string{"config.yaml", ".env"}, "")
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}

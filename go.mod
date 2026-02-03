@@ -1,6 +1,6 @@
 module github.com/sxwebdev/downloaderbot
 
-go 1.25.3
+go 1.25.6
 
 require (
 	github.com/EDDYCJY/fake-useragent v0.2.0
@@ -22,6 +22,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/sxwebdev/colly/v2 v2.2.1
 	github.com/sxwebdev/xconfig v0.2.6
+	github.com/sxwebdev/xconfig/decoders/xconfigdotenv v0.0.0-20260113125235-b6af59cf1040
 	github.com/sxwebdev/xconfig/decoders/xconfigyaml v0.0.0-20260113125235-b6af59cf1040
 	github.com/tkcrm/modules v0.0.0-20250909093305-a0b86c209cc5
 	github.com/tkcrm/mx v0.2.34
@@ -84,6 +85,7 @@ require (
 	github.com/hibiken/asynq v0.26.0 // indirect
 	github.com/itchyny/gojq v0.12.18 // indirect
 	github.com/itchyny/timefmt-go v0.1.7 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect

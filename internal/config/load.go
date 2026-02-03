@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/sxwebdev/xconfig"
+	"github.com/sxwebdev/xconfig/decoders/xconfigdotenv"
 	"github.com/sxwebdev/xconfig/decoders/xconfigyaml"
 	"github.com/sxwebdev/xconfig/plugins/loader"
 	"github.com/sxwebdev/xconfig/plugins/validate"
@@ -15,6 +16,7 @@ func Load[T any](configPaths []string, envPrefix string) (*T, error) {
 
 	loader, err := loader.NewLoader(map[string]loader.Unmarshal{
 		"yaml": xconfigyaml.New().Unmarshal,
+		"env":  xconfigdotenv.New().Unmarshal,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config loader: %w", err)

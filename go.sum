@@ -383,6 +383,8 @@ github.com/itchyny/gojq v0.12.18 h1:gFGHyt/MLbG9n6dqnvlliiya2TaMMh6FFaR2b1H6Drc=
 github.com/itchyny/gojq v0.12.18/go.mod h1:4hPoZ/3lN9fDL1D+aK7DY1f39XZpY9+1Xpjz8atrEkg=
 github.com/itchyny/timefmt-go v0.1.7 h1:xyftit9Tbw+Dc/huSSPJaEmX1TVL8lw5vxjJLK4GMMA=
 github.com/itchyny/timefmt-go v0.1.7/go.mod h1:5E46Q+zj7vbTgWY8o5YkMeYb4I6GeWLFnetPy5oBrAI=
+github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
+github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
 github.com/jpillora/backoff v1.0.0/go.mod h1:J/6gKK9jxlEcS3zixgDgUAsiuZ7yrSoa/FX5e0EB2j4=
 github.com/json-iterator/go v1.1.6/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
 github.com/json-iterator/go v1.1.9/go.mod h1:KdQUCv79m/52Kvf8AW2vK1V8akMuk1QjK/uOdHXbAo4=
@@ -552,6 +554,8 @@ github.com/sxwebdev/colly/v2 v2.2.1 h1:hnvBe59raRTol1ZWcPzo6f/Y2N0kn8ADS5BtsAYPg
 github.com/sxwebdev/colly/v2 v2.2.1/go.mod h1:dnH2jaT2hPJ5bU6719IUnDxU306zx13XXR9vnG+6RJ4=
 github.com/sxwebdev/xconfig v0.2.6 h1:VjRDODUbdoMoey0iPnOg6xqldp2jvszORCX/zh9T+II=
 github.com/sxwebdev/xconfig v0.2.6/go.mod h1:lvz1Eg2zBhBWw1O1JOc67DrFsBfexFrlnmumfXH+wC8=
+github.com/sxwebdev/xconfig/decoders/xconfigdotenv v0.0.0-20260113125235-b6af59cf1040 h1:tRmzRA4t8e1nZeNcRk4xjJLSJAAhisbtVUne2Zc8yPY=
+github.com/sxwebdev/xconfig/decoders/xconfigdotenv v0.0.0-20260113125235-b6af59cf1040/go.mod h1:T2L+SR8fm5c9BQEKHlhsLsKR1yvJECflv65K7t/+sJw=
 github.com/sxwebdev/xconfig/decoders/xconfigyaml v0.0.0-20260113125235-b6af59cf1040 h1:NECMz+TZUOBP4LZFuwpIJhNTqV5CzZ3D8d26r9x8RWo=
 github.com/sxwebdev/xconfig/decoders/xconfigyaml v0.0.0-20260113125235-b6af59cf1040/go.mod h1:7yAkIcV0iS6wR/U0RV+1eZHKO9RBbaXy9V2U9Cq6/QE=
 github.com/temoto/robotstxt v1.1.2 h1:W2pOjSJ6SWvldyEuiFXNxz3xZ8aiWX5LbfDiOFd7Fxg=
