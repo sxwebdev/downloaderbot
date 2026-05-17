@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	browser "github.com/EDDYCJY/fake-useragent"
@@ -23,21 +24,62 @@ import (
 // GetPostWithCode lets you to get information about specific Instagram post
 // by providing its unique shortcode
 func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
-	// validate media code
 	if code == "" {
 		return nil, fmt.Errorf("empty code")
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	type result struct {
+		media *models.Media
+		err   error
+	}
+
+	results := make(chan result, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		m, err := gqlRequest(ctx, code)
+		results <- result{m, err}
+	}()
+
+	go func() {
+		defer wg.Done()
+		m, err := embedRequest(ctx, code)
+		results <- result{m, err}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var lastErr error
+	for r := range results {
+		if r.err == nil && r.media != nil {
+			cancel() // signal the other goroutine to stop
+			return r.media, nil
+		}
+		if r.err != nil {
+			lastErr = r.err
+		}
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, errors.New("failed to fetch the post\nthe page might be \"private\", or\nthe link is completely wrong")
+}
+
+func embedRequest(ctx context.Context, code string) (*models.Media, error) {
 	URL := fmt.Sprintf("https://www.instagram.com/p/%s/embed/captioned/", code)
 
 	var embeddedMediaImage string
 	var caption string
 	embedResponse := response.EmbedResponse{}
-
-	// try to use graphql request
-	if resp, err := gqlRequest(ctx, code); err == nil {
-		return resp, nil
-	}
 
 	errChan := make(chan error, 1)
 	go func() {
@@ -89,9 +131,6 @@ func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
 		errChan <- collector.Visit(URL)
 	}()
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-
 	select {
 	case err := <-errChan:
 		if err != nil {
@@ -101,9 +140,7 @@ func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
 		return nil, fmt.Errorf("failed request by context")
 	}
 
-	// If the method one which is JSON parsing didn't fail
 	if !embedResponse.IsEmpty() {
-		// Transform the Embed response and return
 		resp := models.FromEmbedResponse(embedResponse)
 		return &resp, nil
 	}
@@ -121,8 +158,7 @@ func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
 		}, nil
 	}
 
-	// If every two methods have failed, then return an error
-	return nil, errors.New("failed to fetch the post\nthe page might be \"private\", or\nthe link is completely wrong")
+	return nil, errors.New("embed response empty")
 }
 
 func gqlRequest(ctx context.Context, code string) (*models.Media, error) {
@@ -131,7 +167,6 @@ func gqlRequest(ctx context.Context, code string) (*models.Media, error) {
 
 	payload := strings.NewReader("av=0&__d=www&__user=0&__a=1&__req=3&__hs=19702.HYP%3Ainstagram_web_pkg.2.1..0.0&dpr=2&__ccg=UNKNOWN&__rev=1010329543&__s=ytibog%3Adaumdy%3A3lk1qh&__hsi=7311321296052053265&__dyn=7xeUjG1mxu1syUbFp60DU98nwgU29zEdEc8co2qwJw5ux609vCwjE1xoswIwuo2awlU-cw5Mx62G3i1ywOwv89k2C1Fwc60AEC7U2czXwae4UaEW2G1NwwwNwKwHw8Xxm16wUwtEvw4JwJwSyES1Twoob82ZwrUdUbGwmk1xwmo6O1FwlE6OFA6fxy4Ujw&__csr=gjhXlMxdaWXDamZbmF8ytrmBqGHXRBx2vyV4iQpGvKbCGiU-eLFoSHzqDyqzaKRKFm-ahuiqimXl7ypGjx2OeuqhuBDhHDyWDAgCGGdzEOciihElzUargG4FU01cGpE2W805eiw1S606EE25G44md40dbw1aCrc1txC0uG3VzE8Q2q0nK089w0adG&__comet_req=7&lsd=AVpQxgXKVKs&jazoest=21006&__spin_r=1010329543&__spin_b=trunk&__spin_t=1702299643&fb_api_caller_class=RelayModern&fb_api_req_friendly_name=PolarisPostActionLoadPostQueryQuery&variables=%7B%22shortcode%22%3A%22" + code + "%22%2C%22fetch_comment_count%22%3A40%2C%22fetch_related_profile_media_count%22%3A3%2C%22parent_comment_count%22%3A24%2C%22child_comment_count%22%3A3%2C%22fetch_like_count%22%3A10%2C%22fetch_tagged_user_count%22%3Anull%2C%22fetch_preview_comment_count%22%3A2%2C%22has_threaded_comments%22%3Atrue%2C%22hoisted_comment_id%22%3Anull%2C%22hoisted_reply_id%22%3Anull%7D&server_timestamps=true&doc_id=10015901848480474")
 
-	client := &http.Client{}
 	req, err := http.NewRequestWithContext(ctx, method, url, payload)
 	if err != nil {
 		return nil, err
@@ -163,7 +198,7 @@ func gqlRequest(ctx context.Context, code string) (*models.Media, error) {
 	req.Header.Add("x-fb-lsd", "AVpQxgXKVKs")
 	req.Header.Add("x-ig-app-id", "936619743392459")
 
-	res, err := client.Do(req)
+	res, err := util.DefaultHttpClient().Do(req)
 	if err != nil {
 		return nil, err
 	}

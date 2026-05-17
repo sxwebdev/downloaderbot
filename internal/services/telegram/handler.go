@@ -18,7 +18,7 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/util"
-	"github.com/sxwebdev/downloaderbot/pkg/retry"
+	"github.com/sxwebdev/xutils/retry"
 	"github.com/tkcrm/modules/pkg/utils"
 	"github.com/tkcrm/mx/logger"
 	"golang.org/x/sync/errgroup"
@@ -89,15 +89,6 @@ func (s *handler) OnText(tgCtx telebot.Context) error {
 		}
 
 		return replyError(tgCtx, "Invalid command\nPlease send the Instagram post link")
-	}
-
-	_, err := tgCtx.Bot().Reply(
-		tgCtx.Message(),
-		"⏳ Please wait a moment, downloading your data...",
-		telebot.ModeMarkdown,
-	)
-	if err != nil {
-		return fmt.Errorf("couldn't reply the Error, chat_id %d: %w", tgCtx.Chat().ID, err)
 	}
 
 	link := links[0]
@@ -493,6 +484,7 @@ func generateAlbumFromMedia(items []*models.MediaItem) (telebot.Album, error) {
 	album := util.NewSliceWithLength[telebot.Inputtable](len(items))
 
 	eg := errgroup.Group{}
+	eg.SetLimit(5)
 
 	for idx, media := range items {
 		eg.Go(func() error {

@@ -3,8 +3,8 @@ package models
 import (
 	"fmt"
 	"io"
-	"net/http"
 
+	"github.com/sxwebdev/downloaderbot/internal/util"
 	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"
 )
 
@@ -38,7 +38,7 @@ func (s *MediaItem) FetchMedia() (io.ReadCloser, error) {
 		return nil, fmt.Errorf("empty url")
 	}
 
-	resp, err := http.Get(s.Url)
+	resp, err := util.DefaultHttpClient().Get(s.Url)
 	if err != nil {
 		return nil, err
 	}

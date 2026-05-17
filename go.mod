@@ -12,11 +12,11 @@ require (
 	github.com/kkdai/youtube/v2 v2.10.6
 	github.com/prometheus/client_golang v1.23.2
 	github.com/samber/lo v1.53.0
-	github.com/stretchr/testify v1.11.1
 	github.com/sxwebdev/colly/v2 v2.2.1
 	github.com/sxwebdev/xconfig v0.4.1
 	github.com/sxwebdev/xconfig/decoders/xconfigdotenv v0.0.0-20260505165448-c5f59ca4c792
 	github.com/sxwebdev/xconfig/decoders/xconfigyaml v0.0.0-20260505165448-c5f59ca4c792
+	github.com/sxwebdev/xutils v0.0.0-20260416190945-ca5606ca1d2f
 	github.com/tkcrm/modules v0.0.0-20250909093305-a0b86c209cc5
 	github.com/tkcrm/mx v0.5.0
 	github.com/tkcrm/mx/transport/grpc_transport v0.0.0-20260416191035-f96923f6e391
@@ -71,7 +71,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nlnwa/whatwg-url v0.6.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
@@ -95,5 +94,4 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
