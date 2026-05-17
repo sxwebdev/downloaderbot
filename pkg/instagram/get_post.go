@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	browser "github.com/EDDYCJY/fake-useragent"
@@ -31,46 +30,16 @@ func GetPostWithCode(ctx context.Context, code string) (*models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	type result struct {
-		media *models.Media
-		err   error
+	if media, err := gqlRequest(ctx, code); err == nil && media != nil {
+		return media, nil
 	}
 
-	results := make(chan result, 2)
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		m, err := gqlRequest(ctx, code)
-		results <- result{m, err}
-	}()
-
-	go func() {
-		defer wg.Done()
-		m, err := embedRequest(ctx, code)
-		results <- result{m, err}
-	}()
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var lastErr error
-	for r := range results {
-		if r.err == nil && r.media != nil {
-			cancel() // signal the other goroutine to stop
-			return r.media, nil
-		}
-		if r.err != nil {
-			lastErr = r.err
-		}
+	if media, err := embedRequest(ctx, code); err == nil && media != nil {
+		return media, nil
+	} else if err != nil {
+		return nil, err
 	}
 
-	if lastErr != nil {
-		return nil, lastErr
-	}
 	return nil, errors.New("failed to fetch the post\nthe page might be \"private\", or\nthe link is completely wrong")
 }
 
