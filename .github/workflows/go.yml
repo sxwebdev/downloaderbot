@@ -1,28 +1,36 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
-
 name: Go
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
 
 jobs:
-
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
-    - name: Build
-      run: go build -v cmd/app/main.go
+      - name: Download modules
+        run: go mod download
 
-    - name: Test
-      run: go test -v ./...
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./cmd/app
+
+      - name: Test (race + coverage)
+        run: go test -race -count=1 -timeout=120s -coverprofile=cover.out ./...
+
+      - name: govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: go.mod

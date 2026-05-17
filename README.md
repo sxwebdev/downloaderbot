@@ -6,20 +6,12 @@ Try to chek it: [@mxsaverbot](https://t.me/mxsaverbot)
 
 ## Environment variables
 
-Environment variables are [here](https://github.com/sxwebdev/downloaderbot/blob/master/ENVS.md)
+Environment variables are [here](ENVS.md)
 
 ### Required environment variables
 
 ```bash
-ENV_CI=local # dev / stage / prod
-REDIS_ADDR=localhost:6379 # redis server address
-TELEGRAM_BOT_API_TOKEN= # your telegram bot api token
-S3_ACCESS_ID=
-S3_SECRET_KEY=
-S3_REGION=en-1
-S3_ENDPOINT=http://localhost:9050
-S3_BUCKET_NAME=downloaderbot
-S3_BASE_URL=
+DOWNLOADERBOT_TELEGRAM_BOT_API_TOKEN= # your telegram bot api token
 ```
 
 ## TODO
@@ -31,11 +23,9 @@ S3_BASE_URL=
 - [x] Download from youtube
 - [x] Telegram bot
 - [x] Telegram inline bot
-- [x] Task manager for scheduling jobs
 - [x] Rate limiter for requests
 - [x] Dockerfile
 - [x] Docker compose
-- [x] S3 File storage (used for inline bot)
 
 ```bash
 # start service

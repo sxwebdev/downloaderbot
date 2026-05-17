@@ -1,9 +1,9 @@
 package instagram_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -12,6 +12,10 @@ import (
 )
 
 func TestGetPostWithCode(t *testing.T) {
+	if os.Getenv("INTEGRATION_TESTS") != "1" {
+		t.Skip("integration test; set INTEGRATION_TESTS=1 to run")
+	}
+
 	tests := []struct {
 		name string
 		link string
@@ -41,7 +45,7 @@ func TestGetPostWithCode(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			resp, err := instagram.GetPostWithCode(context.Background(), code)
+			resp, err := instagram.GetPostWithCode(t.Context(), code)
 			if err != nil {
 				t.Fatal(err)
 			}

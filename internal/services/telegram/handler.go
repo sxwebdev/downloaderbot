@@ -51,6 +51,20 @@ func newHandler(
 	}
 }
 
+// recover wraps a telebot handler with panic recovery so a panic in user code
+// doesn't crash the long-polling loop.
+func (s *handler) recover(name string, fn telebot.HandlerFunc) telebot.HandlerFunc {
+	return func(tgCtx telebot.Context) (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Errorf("panic in handler %s: %v", name, r)
+				err = fmt.Errorf("handler %s panicked: %v", name, r)
+			}
+		}()
+		return fn(tgCtx)
+	}
+}
+
 func (s *handler) Start(tgCtx telebot.Context) error {
 	// Ignore channels and groups
 	if tgCtx.Chat().Type != telebot.ChatPrivate {
@@ -74,8 +88,11 @@ func (s *handler) OnText(tgCtx telebot.Context) error {
 
 	l.Infof("request from user: %s", tgCtx.Message().Text)
 
+	limCtx, limCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer limCancel()
+
 	// check limits
-	if err := s.checkLimit(context.Background(), tgCtx.Chat().ID); err != nil {
+	if err := s.checkLimit(limCtx, tgCtx.Chat().ID); err != nil {
 		l.Infof("user reached limits")
 		return replyError(tgCtx, "you have reached your request limits. come back later")
 	}
@@ -113,8 +130,11 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		"chat_id", c.Query().Sender.ID,
 	)
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
 	// check limits
-	if err := s.checkLimit(context.Background(), c.Query().Sender.ID); err != nil {
+	if err := s.checkLimit(ctx, c.Query().Sender.ID); err != nil {
 		l.Infof("user reached limits")
 		return nil
 	}
@@ -127,10 +147,7 @@ func (s *handler) OnQuery(c telebot.Context) error {
 
 	link := links[0]
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-
-	linkInfo, err := s.parserService.GetLinkInfo(link)
+	linkInfo, err := s.parserService.GetLinkInfo(ctx, link)
 	if err != nil {
 		l.Warnf("get link info error: %s", err)
 		return fmt.Errorf("get link info error: %w", err)
@@ -157,13 +174,15 @@ func (s *handler) OnQuery(c telebot.Context) error {
 
 	metrics.InlineRequests.Inc()
 
+	description := truncateRunes(data.Caption, 1000)
+
 	results := make(telebot.Results, len(data.Items))
 	for i, item := range data.Items {
 		switch item.Type {
 		case models.MediaTypeVideo:
 			result := &telebot.VideoResult{
 				Title:       fmt.Sprintf("video-%d", i+1),
-				Description: data.Caption,
+				Description: description,
 				MIME:        "video/mp4",
 				URL:         item.Url,
 				ThumbURL:    item.Url,
@@ -199,7 +218,7 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	linkInfo, err := s.parserService.GetLinkInfo(link)
+	linkInfo, err := s.parserService.GetLinkInfo(ctx, link)
 	if err != nil {
 		return fmt.Errorf("get link info error: %w", err)
 	}
@@ -258,6 +277,9 @@ func replyText(tgCtx telebot.Context, text string) error {
 			writer.Reset()
 		}
 		writer.WriteString(newLine + "\n")
+	}
+	if err := buf.Err(); err != nil {
+		return fmt.Errorf("scan text: %w", err)
 	}
 
 	if writer.Len() > 0 {
@@ -353,10 +375,6 @@ func (s *handler) processYoutube(tgCtx telebot.Context, data *models.Media) erro
 	return replyText(tgCtx, respText)
 }
 
-func (s *handler) processInstagram(tgCtx telebot.Context, data *models.Media) error {
-	return s.processGenericMedia(tgCtx, data)
-}
-
 // processGenericMedia handles media from all sources (Instagram, TikTok, Twitter, etc.)
 func (s *handler) processGenericMedia(tgCtx telebot.Context, data *models.Media) error {
 	// filter items with valid URLs
@@ -386,7 +404,7 @@ func (s *handler) processGenericMedia(tgCtx telebot.Context, data *models.Media)
 			_, err := s.bot.Reply(tgCtx.Message(), captionText, telebot.ModeMarkdown)
 			return err
 		}); err != nil {
-			s.logger.Warnf("send caption with params error: %v", err)
+			return fmt.Errorf("send caption error: %w", err)
 		}
 	}
 
@@ -404,13 +422,28 @@ func escapeMarkdown(text string) string {
 	return replacer.Replace(text)
 }
 
+// truncateRunes returns text limited to maxRunes runes, appending an ellipsis if it was cut.
+func truncateRunes(text string, maxRunes int) string {
+	runes := []rune(text)
+	if len(runes) <= maxRunes {
+		return text
+	}
+	if maxRunes <= 1 {
+		return string(runes[:maxRunes])
+	}
+	return string(runes[:maxRunes-1]) + "…"
+}
+
 func (s *handler) replyTooLarge(tgCtx telebot.Context, sourceURL string) error {
 	text := fmt.Sprintf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB\ntry to download it from [here](%s)", sourceURL)
 	if err := retry.New().Do(func() error {
 		_, err := s.bot.Reply(tgCtx.Message(), text, telebot.ModeMarkdown)
 		return err
 	}); err != nil {
-		s.logger.Error(err)
+		s.logger.Warnf("reply too-large markdown failed, falling back to plain reply: %v", err)
+		if _, fallbackErr := s.bot.Reply(tgCtx.Message(), "file is larger than 50MB, telegram bots can't send it"); fallbackErr != nil {
+			return fmt.Errorf("reply too-large failed: %w (after markdown error: %v)", fallbackErr, err)
+		}
 	}
 	return nil
 }
@@ -434,6 +467,10 @@ func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) er
 			return s.replyTooLarge(tgCtx, mediaItem.Url)
 		}
 
+		if mediaItem.ContentLength > 0 {
+			metrics.MediaSizeBytes.Observe(float64(mediaItem.ContentLength))
+		}
+
 		// handle video
 		if mediaItem.Type.IsVideo() {
 			if err := retry.New().Do(func() error {
@@ -445,6 +482,7 @@ func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) er
 				})
 				return err
 			}); err != nil {
+				metrics.TelegramSendErrors.WithLabelValues("video").Inc()
 				return fmt.Errorf("couldn't send the single video: %w", err)
 			}
 		}
@@ -459,6 +497,7 @@ func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) er
 				})
 				return err
 			}); err != nil {
+				metrics.TelegramSendErrors.WithLabelValues("photo").Inc()
 				return fmt.Errorf("couldn't send the single photo: %w", err)
 			}
 		}
@@ -472,8 +511,12 @@ func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) er
 			return fmt.Errorf("couldn't generate the album: %w", err)
 		}
 
-		if _, err := s.bot.SendAlbum(tgCtx.Message().Chat, album); err != nil {
+		if err := retry.New().Do(func() error {
+			_, err := s.bot.SendAlbum(tgCtx.Message().Chat, album)
 			return err
+		}); err != nil {
+			metrics.TelegramSendErrors.WithLabelValues("album").Inc()
+			return fmt.Errorf("couldn't send the album: %w", err)
 		}
 	}
 

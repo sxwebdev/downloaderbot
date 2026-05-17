@@ -30,7 +30,7 @@ func (s *grpcServer) Register(srv *grpc.Server) {
 
 func (s *grpcServer) GetMedia(ctx context.Context, req *pb.GetMediaRequest) (*pb.GetMediaResponse, error) {
 	// get link info
-	linkInfo, err := s.parserService.GetLinkInfo(req.GetUrl())
+	linkInfo, err := s.parserService.GetLinkInfo(ctx, req.GetUrl())
 	if err != nil {
 		return nil, fmt.Errorf("get link info error: %w", err)
 	}

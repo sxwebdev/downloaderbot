@@ -42,12 +42,11 @@ func configCMD() *cli.Command {
 
 					buf := bytes.NewBuffer(nil)
 					enc := yaml.NewEncoder(buf, yaml.Indent(2))
-					if err := enc.Close(); err != nil {
-						return fmt.Errorf("failed to close encoder: %w", err)
-					}
-
 					if err := enc.Encode(conf); err != nil {
 						return fmt.Errorf("failed to encode yaml: %w", err)
+					}
+					if err := enc.Close(); err != nil {
+						return fmt.Errorf("failed to close encoder: %w", err)
 					}
 
 					if err := os.WriteFile("config.template.yaml", buf.Bytes(), 0o600); err != nil {

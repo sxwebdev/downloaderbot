@@ -21,12 +21,11 @@ func (e *Extractor) Name() string {
 	return string(models.MediaSourceInstagram)
 }
 
-// Hosts returns the supported hosts
+// Hosts returns the supported hosts.
+// `www.` / `m.` / `mobile.` prefixes are normalized by the registry, so we only
+// list the canonical form here.
 func (e *Extractor) Hosts() []string {
-	return []string{
-		"instagram.com",
-		"www.instagram.com",
-	}
+	return []string{"instagram.com"}
 }
 
 // Extract extracts media from Instagram URL

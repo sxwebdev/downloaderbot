@@ -99,103 +99,102 @@ var siteToSource = map[string]models.MediaSource{
 // hostToSite maps host patterns to lux site names
 var hostToSite = map[string]string{
 	// TikTok
-	"tiktok.com":        "tiktok",
-	"vm.tiktok.com":     "tiktok",
-	"vt.tiktok.com":     "tiktok",
-	// Twitter/X
-	"twitter.com":       "twitter",
-	"x.com":             "twitter",
-	"mobile.twitter.com": "twitter",
+	"tiktok.com":    "tiktok",
+	"vm.tiktok.com": "tiktok",
+	"vt.tiktok.com": "tiktok",
+	// Twitter/X (note: `mobile.` and `www.` are normalized away by the registry)
+	"twitter.com": "twitter",
+	"x.com":       "twitter",
 	// Facebook
-	"facebook.com":      "facebook",
-	"fb.watch":          "facebook",
-	"fb.com":            "facebook",
+	"facebook.com": "facebook",
+	"fb.watch":     "facebook",
+	"fb.com":       "facebook",
 	// Vimeo
-	"vimeo.com":         "vimeo",
-	"player.vimeo.com":  "vimeo",
+	"vimeo.com":        "vimeo",
+	"player.vimeo.com": "vimeo",
 	// Reddit
-	"reddit.com":        "reddit",
-	"old.reddit.com":    "reddit",
-	"redd.it":           "reddit",
+	"reddit.com":     "reddit",
+	"old.reddit.com": "reddit",
+	"redd.it":        "reddit",
 	// Pinterest
-	"pinterest.com":     "pinterest",
-	"pin.it":            "pinterest",
+	"pinterest.com": "pinterest",
+	"pin.it":        "pinterest",
 	// Tumblr
-	"tumblr.com":        "tumblr",
+	"tumblr.com": "tumblr",
 	// Bilibili
-	"bilibili.com":      "bilibili",
-	"b23.tv":            "bilibili",
+	"bilibili.com": "bilibili",
+	"b23.tv":       "bilibili",
 	// Douyin
-	"douyin.com":        "douyin",
-	"iesdouyin.com":     "douyin",
+	"douyin.com":    "douyin",
+	"iesdouyin.com": "douyin",
 	// Weibo
-	"weibo.com":         "weibo",
-	"weibo.cn":          "weibo",
+	"weibo.com": "weibo",
+	"weibo.cn":  "weibo",
 	// Xiaohongshu
-	"xiaohongshu.com":   "xiaohongshu",
-	"xhslink.com":       "xiaohongshu",
+	"xiaohongshu.com": "xiaohongshu",
+	"xhslink.com":     "xiaohongshu",
 	// VK
-	"vk.com":            "vk",
-	"vkvideo.ru":        "vk",
+	"vk.com":     "vk",
+	"vkvideo.ru": "vk",
 	// Rumble
-	"rumble.com":        "rumble",
+	"rumble.com": "rumble",
 	// iQIYI
-	"iqiyi.com":         "iqiyi",
+	"iqiyi.com": "iqiyi",
 	// Youku
-	"youku.com":         "youku",
+	"youku.com": "youku",
 	// Kuaishou
-	"kuaishou.com":      "kuaishou",
+	"kuaishou.com": "kuaishou",
 	// Xigua
-	"ixigua.com":        "ixigua",
+	"ixigua.com": "ixigua",
 	// Douyu
-	"douyu.com":         "douyu",
+	"douyu.com": "douyu",
 	// Huya
-	"huya.com":          "huya",
+	"huya.com": "huya",
 	// MGTV
-	"mgtv.com":          "mgtv",
+	"mgtv.com": "mgtv",
 	// QQ
-	"qq.com":            "qq",
-	"v.qq.com":          "qq",
+	"qq.com":   "qq",
+	"v.qq.com": "qq",
 	// Netease
-	"163.com":           "netease",
-	"music.163.com":     "netease",
+	"163.com":       "netease",
+	"music.163.com": "netease",
 	// Zhihu
-	"zhihu.com":         "zhihu",
+	"zhihu.com": "zhihu",
 	// Acfun
-	"acfun.cn":          "acfun",
+	"acfun.cn": "acfun",
 	// BCY
-	"bcy.net":           "bcy",
+	"bcy.net": "bcy",
 	// Eporner
-	"eporner.com":       "eporner",
+	"eporner.com": "eporner",
 	// Geekbang
-	"geekbang.org":      "geekbang",
+	"geekbang.org": "geekbang",
 	// Haokan
-	"haokan.baidu.com":  "haokan",
+	"haokan.baidu.com": "haokan",
 	// Hupu
-	"hupu.com":          "hupu",
+	"hupu.com": "hupu",
 	// Miaopai
-	"miaopai.com":       "miaopai",
+	"miaopai.com": "miaopai",
 	// Pixivision
-	"pixivision.net":    "pixivision",
+	"pixivision.net": "pixivision",
 	// Pornhub
-	"pornhub.com":       "pornhub",
+	"pornhub.com": "pornhub",
 	// Streamtape
-	"streamtape.com":    "streamtape",
+	"streamtape.com": "streamtape",
 	// Tangdou
-	"tangdou.com":       "tangdou",
+	"tangdou.com": "tangdou",
 	// UDN
-	"udn.com":           "udn",
-	"video.udn.com":     "udn",
+	"udn.com":       "udn",
+	"video.udn.com": "udn",
 	// Ximalaya
-	"ximalaya.com":      "ximalaya",
+	"ximalaya.com": "ximalaya",
 	// Xinpianchang
-	"xinpianchang.com":  "xinpianchang",
+	"xinpianchang.com": "xinpianchang",
 	// Xvideos
-	"xvideos.com":       "xvideos",
+	"xvideos.com": "xvideos",
 	// Yinyuetai
-	"yinyuetai.com":     "yinyuetai",
+	"yinyuetai.com": "yinyuetai",
 	// Zingmp3
-	"zingmp3.vn":        "zingmp3",
+	"zingmp3.vn": "zingmp3",
 }
 
 // Extractor implements the extractor.Extractor interface using lux library

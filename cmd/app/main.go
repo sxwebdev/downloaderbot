@@ -65,7 +65,6 @@ func main() {
 	l, err := loadLogger()
 	if err != nil {
 		logger.Default().Fatalf("failed to load logger: %s", err)
-		os.Exit(1)
 	}
 
 	app := &cli.Command{

@@ -186,7 +186,7 @@ func gqlRequest(ctx context.Context, code string) (*models.Media, error) {
 	data := gqlResp.Data.XdtShortcodeMedia
 
 	if !data.IsVideo {
-		return nil, fmt.Errorf("reponse is not video")
+		return nil, fmt.Errorf("response is not video")
 	}
 
 	resp := &models.Media{

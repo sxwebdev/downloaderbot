@@ -12,9 +12,9 @@ import (
 // Registry manages all registered extractors
 type Registry struct {
 	mu         sync.RWMutex
-	extractors map[string]Extractor   // name -> extractor
-	hostMap    map[string]Extractor   // host -> extractor
-	sources    []models.MediaSource   // all registered sources
+	extractors map[string]Extractor // name -> extractor
+	hostMap    map[string]Extractor // host -> extractor
+	sources    []models.MediaSource // all registered sources
 }
 
 // NewRegistry creates a new extractor registry

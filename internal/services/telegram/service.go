@@ -22,7 +22,8 @@ type Service struct {
 	lim           *limiter.Limiter
 	parserService *parser.Service
 
-	bot *telebot.Bot
+	bot  *telebot.Bot
+	done chan struct{}
 }
 
 func New(l logger.Logger, cfg *config.Config, parserService *parser.Service, lim *limiter.Limiter) *Service {
@@ -53,12 +54,14 @@ func (s *Service) Start(ctx context.Context) error {
 	handler := newHandler(s.logger, s.config, s.parserService, s.lim, s.bot)
 
 	// set command for bot
-	s.bot.Handle("/start", handler.Start)
-	s.bot.Handle(telebot.OnText, handler.OnText)
-	s.bot.Handle(telebot.OnQuery, handler.OnQuery)
+	s.bot.Handle("/start", handler.recover("start", handler.Start))
+	s.bot.Handle(telebot.OnText, handler.recover("on_text", handler.OnText))
+	s.bot.Handle(telebot.OnQuery, handler.recover("on_query", handler.OnQuery))
 
 	// start bot instance
+	s.done = make(chan struct{})
 	go func() {
+		defer close(s.done)
 		s.bot.Start()
 	}()
 
@@ -67,7 +70,16 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s Service) Stop(ctx context.Context) error {
+func (s *Service) Stop(ctx context.Context) error {
+	if s.bot == nil {
+		return nil
+	}
 	s.bot.Stop()
+	if s.done != nil {
+		select {
+		case <-s.done:
+		case <-ctx.Done():
+		}
+	}
 	return nil
 }

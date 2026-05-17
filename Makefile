@@ -9,8 +9,20 @@ start:
 build:
 	go build -o ./.build/app -v cmd/app/main.go
 
+test:
+	go test -race -count=1 ./...
+
+test-cover:
+	go test -race -count=1 -coverprofile=cover.out ./... && go tool cover -html=cover.out
+
+vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 watch:
 	air -c .air.toml
+
+fmt:
+	gofumpt -l -w .
 
 grpcui:
 	grpcui --plaintext localhost:9000

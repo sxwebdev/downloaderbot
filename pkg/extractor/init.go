@@ -11,14 +11,20 @@ var DefaultRegistry = NewRegistry()
 
 func init() {
 	// Register Instagram extractor (custom implementation)
-	_ = DefaultRegistry.Register(extInstagram.New())
+	if err := DefaultRegistry.Register(extInstagram.New()); err != nil {
+		panic("register instagram extractor: " + err.Error())
+	}
 
 	// Register YouTube extractor (custom implementation)
-	_ = DefaultRegistry.Register(extYoutube.New())
+	if err := DefaultRegistry.Register(extYoutube.New()); err != nil {
+		panic("register youtube extractor: " + err.Error())
+	}
 
 	// Register all lux-based extractors
 	for _, ext := range extLux.GetAllExtractors() {
-		_ = DefaultRegistry.Register(ext)
+		if err := DefaultRegistry.Register(ext); err != nil {
+			panic("register lux extractor " + ext.Name() + ": " + err.Error())
+		}
 	}
 }
 
