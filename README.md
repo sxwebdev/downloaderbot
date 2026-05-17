@@ -36,7 +36,6 @@ S3_BASE_URL=
 - [x] Dockerfile
 - [x] Docker compose
 - [x] S3 File storage (used for inline bot)
-- [x] Proxy server for youtube filelinks
 
 ```bash
 # start service

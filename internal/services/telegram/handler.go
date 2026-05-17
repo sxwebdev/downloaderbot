@@ -5,8 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"mime"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -300,30 +298,7 @@ func (s *handler) processYoutube(tgCtx telebot.Context, data *models.Media) erro
 	}
 
 	fnVideoFormatter := func(item *models.MediaItem) {
-		exts, err := mime.ExtensionsByType(item.MimeType)
-		if err != nil {
-			return
-		}
-
 		downloadLink := item.Url
-
-		if s.config.ProxyHttpEnabled {
-			var ext string
-			if len(exts) > 0 {
-				ext = exts[len(exts)-1]
-			}
-
-			downloadLink, err = url.JoinPath(
-				s.config.ProxyHttpBaseUrl,
-				"download",
-				item.Quality+"-video"+ext,
-			)
-			if err != nil {
-				return
-			}
-
-			downloadLink += "?redirectUrl=" + url.QueryEscape(item.Url)
-		}
 
 		noAudioStr := ""
 		if item.VideoWithoutAudio {

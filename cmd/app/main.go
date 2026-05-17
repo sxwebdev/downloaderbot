@@ -7,7 +7,6 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/sxwebdev/downloaderbot/internal/daemons"
 	"github.com/sxwebdev/downloaderbot/internal/limiter"
-	"github.com/sxwebdev/downloaderbot/internal/proxy"
 	"github.com/sxwebdev/downloaderbot/internal/services/files"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/services/telegram"
@@ -74,7 +73,6 @@ func run(l logger.ExtendedLogger) error {
 		return fmt.Errorf("failed to init files service: %w", err)
 	}
 
-	proxyService := proxy.New(l, conf)
 	parserService := parser.New(l, conf, filesService)
 	telegramService := telegram.New(l, conf, parserService, lm)
 	daemons := daemons.New(l, conf, filesService)
@@ -91,7 +89,6 @@ func run(l logger.ExtendedLogger) error {
 	ln.ServicesRunner().Register(
 		launcher.NewService(launcher.WithService(pingpong.New(l))),
 		launcher.NewService(launcher.WithService(grpcServer)),
-		launcher.NewService(launcher.WithService(proxyService)),
 		launcher.NewService(launcher.WithService(telegramService)),
 		launcher.NewService(launcher.WithService(daemons)),
 	)
