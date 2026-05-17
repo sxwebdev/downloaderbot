@@ -6,7 +6,6 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/sxwebdev/downloaderbot/internal/services/files"
 	"github.com/tkcrm/mx/logger"
-	"github.com/tkcrm/mx/service"
 )
 
 const serviceName = "parser-service"
@@ -35,5 +34,3 @@ func (s *Service) Start(ctx context.Context) error {
 }
 
 func (s Service) Stop(ctx context.Context) error { return nil }
-
-var _ service.IService = (*Service)(nil)

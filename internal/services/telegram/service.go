@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/sxwebdev/downloaderbot/internal/config"
+	"github.com/sxwebdev/downloaderbot/internal/limiter"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
-	"github.com/tkcrm/modules/pkg/limiter"
 	"github.com/tkcrm/mx/logger"
-	"github.com/tkcrm/mx/service"
 	"gopkg.in/telebot.v3"
 )
 
@@ -20,13 +19,13 @@ type Service struct {
 	config *config.Config
 	name   string
 
-	lim           limiter.ILimiter
+	lim           *limiter.Limiter
 	parserService *parser.Service
 
 	bot *telebot.Bot
 }
 
-func New(l logger.Logger, cfg *config.Config, parserService *parser.Service, lim limiter.ILimiter) *Service {
+func New(l logger.Logger, cfg *config.Config, parserService *parser.Service, lim *limiter.Limiter) *Service {
 	return &Service{
 		logger:        logger.With(l, "service", ServiceName),
 		config:        cfg,
@@ -72,5 +71,3 @@ func (s Service) Stop(ctx context.Context) error {
 	s.bot.Stop()
 	return nil
 }
-
-var _ service.IService = (*Service)(nil)

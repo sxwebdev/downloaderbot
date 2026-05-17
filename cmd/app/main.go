@@ -6,17 +6,14 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/api"
 	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/sxwebdev/downloaderbot/internal/daemons"
+	"github.com/sxwebdev/downloaderbot/internal/limiter"
 	"github.com/sxwebdev/downloaderbot/internal/proxy"
 	"github.com/sxwebdev/downloaderbot/internal/services/files"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/services/telegram"
-	"github.com/tkcrm/modules/pkg/db/dragonfly"
-	"github.com/tkcrm/modules/pkg/limiter"
-	"github.com/tkcrm/modules/pkg/taskmanager"
 	"github.com/tkcrm/mx/launcher"
+	"github.com/tkcrm/mx/launcher/services/pingpong"
 	"github.com/tkcrm/mx/logger"
-	"github.com/tkcrm/mx/service"
-	"github.com/tkcrm/mx/service/pingpong"
 	"github.com/tkcrm/mx/transport/grpc_transport"
 )
 
@@ -65,21 +62,10 @@ func run(l logger.ExtendedLogger) error {
 		launcher.WithAppStartStopLog(true),
 	)
 
-	rd, err := dragonfly.New(ln.Context(), conf.Redis, l)
-	if err != nil {
-		return fmt.Errorf("failed to init redis connection: %w", err)
-	}
-
 	// init limiter
-	lm, err := limiter.New(l, conf.Limiter, rd.Conn)
+	lm, err := limiter.New("10-M")
 	if err != nil {
 		return fmt.Errorf("failed to init limiter: %w", err)
-	}
-
-	if err := lm.RegisterServices(
-		limiter.NewService(telegram.ServiceName, limiter.WithFormattedLimit("10-M")),
-	); err != nil {
-		return fmt.Errorf("failed to register limiter services: %w", err)
 	}
 
 	// services
@@ -91,16 +77,7 @@ func run(l logger.ExtendedLogger) error {
 	proxyService := proxy.New(l, conf)
 	parserService := parser.New(l, conf, filesService)
 	telegramService := telegram.New(l, conf, parserService, lm)
-	tm := taskmanager.New(l, taskmanager.Config{
-		UniqueTasks: true,
-		RedisConfig: taskmanager.RedisConfig{
-			Addr:     conf.Redis.Addr,
-			Username: conf.Redis.User,
-			Password: conf.Redis.Password,
-			DB:       conf.Redis.DbIndex,
-		},
-	})
-	daemons := daemons.New(l, conf, tm, filesService)
+	daemons := daemons.New(l, conf, filesService)
 	// grpc servers
 	botGrpcServer := api.NewBotGrpcServer(parserService)
 
@@ -112,13 +89,11 @@ func run(l logger.ExtendedLogger) error {
 	)
 
 	ln.ServicesRunner().Register(
-		service.New(service.WithService(pingpong.New(l))),
-		service.New(service.WithService(rd), service.WithName("redis")),
-		service.New(service.WithService(tm)),
-		service.New(service.WithService(grpcServer)),
-		service.New(service.WithService(proxyService)),
-		service.New(service.WithService(telegramService)),
-		service.New(service.WithService(daemons)),
+		launcher.NewService(launcher.WithService(pingpong.New(l))),
+		launcher.NewService(launcher.WithService(grpcServer)),
+		launcher.NewService(launcher.WithService(proxyService)),
+		launcher.NewService(launcher.WithService(telegramService)),
+		launcher.NewService(launcher.WithService(daemons)),
 	)
 
 	return ln.Run()

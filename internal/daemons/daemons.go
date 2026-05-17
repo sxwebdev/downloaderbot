@@ -2,66 +2,41 @@ package daemons
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/robfig/cron/v3"
 	"github.com/sxwebdev/downloaderbot/internal/config"
-	"github.com/sxwebdev/downloaderbot/internal/constants"
 	"github.com/sxwebdev/downloaderbot/internal/services/files"
-	"github.com/tkcrm/modules/pkg/taskmanager"
 	"github.com/tkcrm/mx/logger"
-	"github.com/tkcrm/mx/service"
 )
 
-type IDaemons service.IService
-
-type daemons struct {
+type Daemons struct {
 	logger logger.Logger
 	config *config.Config
 	cron   *cron.Cron
-	tm     taskmanager.ITaskmanager
 
-	// Services
 	filesService files.IFiles
 }
 
 func New(
 	l logger.Logger,
 	c *config.Config,
-	tm taskmanager.ITaskmanager,
 	fileService files.IFiles,
-) IDaemons {
-	return &daemons{
+) *Daemons {
+	return &Daemons{
 		logger:       l,
 		config:       c,
-		tm:           tm,
 		filesService: fileService,
 		cron:         cron.New(cron.WithSeconds()),
 	}
 }
 
-func (s *daemons) initTaskManagerHandlers() error {
-	if err := s.tm.RegisterWorkerHandlers(taskmanager.WorkerHandlers{
-		constants.TaskDeleteTempFiles: s.deleteTempFilesTask,
-	}); err != nil {
-		return err
-	}
+func (s *Daemons) Name() string { return "daemons" }
 
-	return nil
-}
-
-func (s *daemons) Name() string { return "daemons" }
-
-func (s *daemons) Start(ctx context.Context) error {
-	// Register task handlers
-	if err := s.initTaskManagerHandlers(); err != nil {
-		return fmt.Errorf("RegisterWorkerHandlers error: %s", err)
-	}
-
+func (s *Daemons) Start(ctx context.Context) error {
 	// Delete temp files
 	if _, err := s.cron.AddFunc("@every 1m", func() {
-		if err := s.tm.AddTask(constants.TaskDeleteTempFiles, nil); err != nil {
-			s.logger.Error(err)
+		if err := s.deleteTempFilesTaskHandler(ctx); err != nil {
+			s.logger.Errorf("daemon: \"delete_temp_files\" error: %v", err)
 		}
 	}); err != nil {
 		return err
@@ -75,7 +50,7 @@ func (s *daemons) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *daemons) Stop(_ context.Context) error {
+func (s *Daemons) Stop(_ context.Context) error {
 	if s.cron == nil {
 		return nil
 	}

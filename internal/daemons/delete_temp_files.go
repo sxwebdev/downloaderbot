@@ -3,21 +3,10 @@ package daemons
 import (
 	"context"
 	"time"
-
-	"github.com/tkcrm/modules/pkg/taskmanager"
 )
 
 // this task delete temp files from s3 storage
-func (s *daemons) deleteTempFilesTask(ctx context.Context, t *taskmanager.Task) error {
-	if err := s.deleteTempFilesTaskHandler(ctx); err != nil {
-		s.logger.Errorf("daemon: \"%s\" error: %v", t.Type, err)
-		return err
-	}
-
-	return nil
-}
-
-func (s *daemons) deleteTempFilesTaskHandler(ctx context.Context) error {
+func (s *Daemons) deleteTempFilesTaskHandler(ctx context.Context) error {
 	files, err := s.filesService.List(ctx, s.config.S3.BucketName)
 	if err != nil {
 		return err

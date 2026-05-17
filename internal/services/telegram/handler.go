@@ -14,12 +14,12 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/sxwebdev/downloaderbot/internal/config"
+	"github.com/sxwebdev/downloaderbot/internal/limiter"
 	"github.com/sxwebdev/downloaderbot/internal/metrics"
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/util"
 	"github.com/sxwebdev/downloaderbot/pkg/retry"
-	"github.com/tkcrm/modules/pkg/limiter"
 	"github.com/tkcrm/modules/pkg/utils"
 	"github.com/tkcrm/mx/logger"
 	"golang.org/x/sync/errgroup"
@@ -31,7 +31,7 @@ type handler struct {
 	config *config.Config
 
 	parserService *parser.Service
-	lim           limiter.ILimiter
+	lim           *limiter.Limiter
 
 	bot *telebot.Bot
 }
@@ -40,7 +40,7 @@ func newHandler(
 	logger logger.Logger,
 	config *config.Config,
 	parserService *parser.Service,
-	lim limiter.ILimiter,
+	lim *limiter.Limiter,
 	bot *telebot.Bot,
 ) *handler {
 	return &handler{
@@ -233,24 +233,7 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 }
 
 func (s *handler) checkLimit(ctx context.Context, chatID int64) error {
-	// get limiter
-	lm, err := s.lim.GetService(ServiceName)
-	if err != nil {
-		return err
-	}
-
-	// get service limit stats
-	lmStats, err := lm.Get(ctx, limiter.WithCacheKey(strconv.Itoa(int(chatID))))
-	if err != nil {
-		return err
-	}
-
-	// check limit
-	if lmStats.Reached {
-		return fmt.Errorf("%s rate limit is reached", ServiceName)
-	}
-
-	return nil
+	return s.lim.Allow(ctx, strconv.Itoa(int(chatID)))
 }
 
 func replyError(c telebot.Context, text string) error {

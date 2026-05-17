@@ -12,7 +12,6 @@ import (
 	recoverMiddleware "github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/tkcrm/mx/logger"
-	"github.com/tkcrm/mx/service"
 )
 
 const serviceName = "proxy-service"
@@ -104,5 +103,3 @@ func (s Service) Stop(ctx context.Context) error {
 
 	return s.fiber.ShutdownWithContext(ctx)
 }
-
-var _ service.IService = (*Service)(nil)
