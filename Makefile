@@ -4,7 +4,7 @@ docker_repo					= $(DOCKER_REPO)
 docker_compose_cli	= docker compose -f docker-compose.yml -p downloaderbot
 
 start:
-	go run cmd/app/main.go
+	go run ./cmd/app start
 
 build:
 	go build -o ./.build/app -v cmd/app/main.go
@@ -14,6 +14,9 @@ watch:
 
 grpcui:
 	grpcui --plaintext localhost:9000
+
+genenvs:
+	go run ./cmd/app config genenvs
 
 genproto:
 	rm -rf pb/*

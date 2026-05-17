@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -412,30 +413,41 @@ func escapeMarkdown(text string) string {
 	return replacer.Replace(text)
 }
 
+func (s *handler) replyTooLarge(tgCtx telebot.Context, sourceURL string) error {
+	text := fmt.Sprintf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB\ntry to download it from [here](%s)", sourceURL)
+	if err := retry.New().Do(func() error {
+		_, err := s.bot.Reply(tgCtx.Message(), text, telebot.ModeMarkdown)
+		return err
+	}); err != nil {
+		s.logger.Error(err)
+	}
+	return nil
+}
+
 func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) error {
 	if len(data.Items) == 1 {
 		mediaItem := data.Items[0]
+
 		if mediaItem.ContentLength > 50*1024*1024 {
-			text := fmt.Sprintf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB\ntry to download it from [here](%s)", mediaItem.Url)
-			if err := retry.New().Do(func() error {
-				_, err := s.bot.Reply(tgCtx.Message(), text, telebot.ModeMarkdown)
-				return err
-			}); err != nil {
-				s.logger.Error(err)
-			}
-			return nil
+			return s.replyTooLarge(tgCtx, mediaItem.Url)
 		}
 
-		mediaData, err := mediaItem.GetMediaDataByURL()
+		body, err := mediaItem.FetchMedia()
 		if err != nil {
 			return err
+		}
+		defer body.Close()
+
+		// FetchMedia updates ContentLength from response header — recheck before streaming
+		if mediaItem.ContentLength > 50*1024*1024 {
+			return s.replyTooLarge(tgCtx, mediaItem.Url)
 		}
 
 		// handle video
 		if mediaItem.Type.IsVideo() {
 			if err := retry.New().Do(func() error {
 				_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
-					File:   telebot.FromReader(mediaData),
+					File:   telebot.FromReader(body),
 					Width:  mediaItem.Width,
 					Height: mediaItem.Height,
 					MIME:   mediaItem.MimeType,
@@ -450,7 +462,7 @@ func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) er
 		if mediaItem.Type.IsPhoto() {
 			if err := retry.New().Do(func() error {
 				_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Photo{
-					File:   telebot.FromReader(mediaData),
+					File:   telebot.FromReader(body),
 					Width:  mediaItem.Width,
 					Height: mediaItem.Height,
 				})
@@ -484,21 +496,28 @@ func generateAlbumFromMedia(items []*models.MediaItem) (telebot.Album, error) {
 
 	for idx, media := range items {
 		eg.Go(func() error {
-			mediaData, err := media.GetMediaDataByURL()
+			body, err := media.FetchMedia()
 			if err != nil {
 				return err
 			}
+			defer body.Close()
+
+			data, err := io.ReadAll(body)
+			if err != nil {
+				return err
+			}
+			buf := bytes.NewReader(data)
 
 			if media.Type.IsVideo() {
 				album.AddToIndex(idx, &telebot.Video{
-					File:   telebot.FromReader(mediaData),
+					File:   telebot.FromReader(buf),
 					Width:  media.Width,
 					Height: media.Height,
 					MIME:   media.MimeType,
 				})
 			} else {
 				album.AddToIndex(idx, &telebot.Photo{
-					File:   telebot.FromReader(mediaData),
+					File:   telebot.FromReader(buf),
 					Width:  media.Width,
 					Height: media.Height,
 				})

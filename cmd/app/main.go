@@ -1,26 +1,25 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
 
-	"github.com/sxwebdev/downloaderbot/internal/api"
-	"github.com/sxwebdev/downloaderbot/internal/config"
-	"github.com/sxwebdev/downloaderbot/internal/daemons"
-	"github.com/sxwebdev/downloaderbot/internal/limiter"
-	"github.com/sxwebdev/downloaderbot/internal/services/files"
-	"github.com/sxwebdev/downloaderbot/internal/services/parser"
-	"github.com/sxwebdev/downloaderbot/internal/services/telegram"
+	"github.com/sxwebdev/xconfig"
+	"github.com/sxwebdev/xconfig/decoders/xconfigdotenv"
+	"github.com/sxwebdev/xconfig/decoders/xconfigyaml"
+	"github.com/sxwebdev/xconfig/plugins/loader"
 	"github.com/tkcrm/mx/launcher"
-	"github.com/tkcrm/mx/launcher/services/pingpong"
 	"github.com/tkcrm/mx/logger"
-	"github.com/tkcrm/mx/transport/grpc_transport"
+	"github.com/urfave/cli/v3"
 )
 
 var (
 	appName    = "downloaderbot"
 	version    = "local"
 	commitHash = "unknown"
-	// buildDate  = "unknown"
+	envPrefix  = "DOWNLOADERBOT"
 )
 
 func getVersion() string { return version + "-" + commitHash }
@@ -32,66 +31,55 @@ func defaultLoggerOpts() []logger.Option {
 	}
 }
 
-func main() {
-	l := logger.NewExtended(defaultLoggerOpts()...)
-	if err := run(l); err != nil {
-		l.Fatalf("application stopped with error: %s", err)
+func loadLogger() (logger.ExtendedLogger, error) {
+	// Load main config from YAML files
+	ld, err := loader.NewLoader(map[string]loader.Unmarshal{
+		"yaml": xconfigyaml.New().Unmarshal,
+		"env":  xconfigdotenv.New().Unmarshal,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config loader: %w", err)
 	}
+
+	if err := ld.AddFiles([]string{".env", "config.yaml"}, true); err != nil {
+		return nil, fmt.Errorf("failed to add config files: %w", err)
+	}
+
+	var loggerCfg struct {
+		Log logger.Config
+	}
+	if _, err := xconfig.Load(&loggerCfg,
+		xconfig.WithSkipFlags(),
+		xconfig.WithLoader(ld),
+	); err != nil {
+		return nil, fmt.Errorf("failed to load logger config: %w", err)
+	}
+
+	return logger.NewExtended(append(defaultLoggerOpts(), logger.WithConfig(loggerCfg.Log))...), nil
 }
 
-func run(l logger.ExtendedLogger) error {
-	conf, err := config.Load[config.Config]([]string{"config.yaml", ".env"}, "")
+func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), launcher.ShutdownSiganl()...)
+	defer cancel()
+
+	l, err := loadLogger()
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		logger.Default().Fatalf("failed to load logger: %s", err)
+		os.Exit(1)
 	}
 
-	loggerOpts := append(defaultLoggerOpts(), logger.WithConfig(conf.Log))
-
-	l = logger.WithExtended(logger.NewExtended(loggerOpts...))
-	defer func() {
-		_ = l.Sync()
-	}()
-
-	ln := launcher.New(
-		launcher.WithName(appName),
-		launcher.WithLogger(l),
-		launcher.WithVersion(version),
-		launcher.WithRunnerServicesSequence(launcher.RunnerServicesSequenceFifo),
-		launcher.WithOpsConfig(conf.Ops),
-		launcher.WithAppStartStopLog(true),
-	)
-
-	// init limiter
-	lm, err := limiter.New("10-M")
-	if err != nil {
-		return fmt.Errorf("failed to init limiter: %w", err)
+	app := &cli.Command{
+		Name:    appName,
+		Usage:   "Downloader bot",
+		Version: getVersion(),
+		Suggest: true,
+		Commands: []*cli.Command{
+			startCMD(l),
+			configCMD(),
+		},
 	}
 
-	// services
-	filesService, err := files.New(ln.Context(), l, conf)
-	if err != nil {
-		return fmt.Errorf("failed to init files service: %w", err)
+	if err := app.Run(ctx, os.Args); err != nil {
+		l.Fatalf("failed to run: %s", err)
 	}
-
-	parserService := parser.New(l, conf, filesService)
-	telegramService := telegram.New(l, conf, parserService, lm)
-	daemons := daemons.New(l, conf, filesService)
-	// grpc servers
-	botGrpcServer := api.NewBotGrpcServer(parserService)
-
-	// grpc instance
-	grpcServer := grpc_transport.NewServer(
-		grpc_transport.WithLogger(l),
-		grpc_transport.WithConfig(conf.Grpc),
-		grpc_transport.WithServices(botGrpcServer),
-	)
-
-	ln.ServicesRunner().Register(
-		launcher.NewService(launcher.WithService(pingpong.New(l))),
-		launcher.NewService(launcher.WithService(grpcServer)),
-		launcher.NewService(launcher.WithService(telegramService)),
-		launcher.NewService(launcher.WithService(daemons)),
-	)
-
-	return ln.Run()
 }

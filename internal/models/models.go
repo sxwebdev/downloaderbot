@@ -1,7 +1,6 @@
 package models
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,7 +33,7 @@ type MediaItem struct {
 	Height            int       `json:"height"`
 }
 
-func (s MediaItem) GetMediaDataByURL() (io.Reader, error) {
+func (s *MediaItem) FetchMedia() (io.ReadCloser, error) {
 	if s.Url == "" {
 		return nil, fmt.Errorf("empty url")
 	}
@@ -43,14 +42,15 @@ func (s MediaItem) GetMediaDataByURL() (io.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	if resp.StatusCode/100 != 2 {
+		resp.Body.Close()
+		return nil, fmt.Errorf("source returned %s", resp.Status)
+	}
+	if resp.ContentLength > 0 {
+		s.ContentLength = resp.ContentLength
 	}
 
-	return bytes.NewBuffer(data), nil
+	return resp.Body, nil
 }
 
 // Media which contains a single Instagram post

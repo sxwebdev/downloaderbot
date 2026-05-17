@@ -2,14 +2,8 @@ package parser
 
 import (
 	"context"
-	"crypto/md5"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/util"
@@ -18,7 +12,6 @@ import (
 	_ "github.com/sxwebdev/downloaderbot/pkg/extractor/instagram"
 	_ "github.com/sxwebdev/downloaderbot/pkg/extractor/lux"
 	_ "github.com/sxwebdev/downloaderbot/pkg/extractor/youtube"
-	"golang.org/x/sync/errgroup"
 )
 
 type GetLinkInfoResponse struct {
@@ -65,85 +58,4 @@ func (s *Service) GetMedia(ctx context.Context, linkInfo GetLinkInfoResponse) (*
 	}
 
 	return media, nil
-}
-
-func (s *Service) saveMediaData(ctx context.Context, media *models.Media) error {
-	if len(media.Items) == 0 {
-		return nil
-	}
-
-	eg, egCtx := errgroup.WithContext(ctx)
-
-	for _, item := range media.Items {
-		eg.Go(func() error {
-			return s.saveMediaItem(egCtx, item)
-		})
-	}
-
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Service) saveMediaItem(ctx context.Context, item *models.MediaItem) error {
-	uri, err := url.ParseRequestURI(item.Url)
-	if err != nil {
-		return err
-	}
-
-	ext := filepath.Ext(uri.Path)
-	fileNameWithoutExt := strings.TrimSuffix(filepath.Base(uri.Path), ext)
-
-	h := md5.New()
-	if _, err := io.WriteString(h, fileNameWithoutExt); err != nil {
-		return err
-	}
-
-	fileName := fmt.Sprintf("%x", h.Sum(nil)) + ext
-
-	// check if file already exists in storage
-	exists, err := s.filesService.Exists(ctx, s.config.S3.BucketName, fileName)
-	if err != nil {
-		return fmt.Errorf("failed to check exists file with name %s error: %w", fileName, err)
-	}
-
-	// use file from storage if it esists
-	if exists {
-		// get public file url
-		fileUrl, err := url.JoinPath(s.config.S3BaseUrl, fileName)
-		if err != nil {
-			return err
-		}
-
-		item.Url = fileUrl
-		return nil
-	}
-
-	// download media file
-	resp, err := http.Get(item.Url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// upload file to storage
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-	defer cancel()
-
-	filePath, err := s.filesService.UploadStream(ctx, s.config.S3.BucketName, fileName, resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to upload file with name %s error: %w", fileName, err)
-	}
-
-	// get public file url
-	fileUrl, err := url.JoinPath(s.config.S3BaseUrl, filePath)
-	if err != nil {
-		return err
-	}
-
-	item.Url = fileUrl
-
-	return nil
 }
