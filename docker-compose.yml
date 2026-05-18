@@ -1,33 +1,8 @@
-volumes:
-  minio-data1-1:
-  minio-data1-2:
-
 services:
-  # redis
-  redis:
-    image: "redis:latest"
-    restart: unless-stopped
-    command: ["redis-server", "--bind", "redis", "--port", "6379"]
-    ports:
-      - "${REDIS_PORT}:6379"
-
-  # minio
-  minio:
-    image: quay.io/minio/minio
-    command: server --console-address ":9001" http://minio1/data{1...2}
-    restart: unless-stopped
+  downloaderbot:
+    image: ghcr.io/sxwebdev/downloaderbot:latest
+    container_name: downloaderbot
+    command: ["start"]
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: adminpass
-    ports:
-      - "${MINIO_SERVER_PORT}:9000"
-      - "${MINIO_CONSOLE_PORT}:9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    hostname: minio1
-    volumes:
-      - minio-data1-1:/data1
-      - minio-data1-2:/data2
+      - DOWNLOADERBOT_TELEGRAM_BOT_API_TOKEN=${TELEGRAM_BOT_API_TOKEN}
+    restart: on-failure

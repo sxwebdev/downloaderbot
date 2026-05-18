@@ -34,4 +34,4 @@ ENV ZONEINFO=/app/zoneinfo.zip
 
 USER appuser
 
-ENTRYPOINT ["/app/downloaderbot", "start"]
+ENTRYPOINT ["/app/downloaderbot"]
