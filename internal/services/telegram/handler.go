@@ -29,6 +29,12 @@ import (
 // maxFileSize is the Telegram Bot API upload limit for files sent by a bot.
 const maxFileSize = 50 * 1024 * 1024
 
+// processStats captures timing/attempt metrics of handling a single link.
+type processStats struct {
+	FetchDuration time.Duration // time spent fetching media (extraction + retries)
+	Attempts      int           // number of fetch attempts performed
+}
+
 type handler struct {
 	logger logger.Logger
 	config *config.Config
@@ -116,12 +122,17 @@ func (s *handler) OnText(tgCtx telebot.Context) error {
 
 	link := links[0]
 
-	if err := s.processLink(tgCtx, link); err != nil {
+	stats, err := s.processLink(tgCtx, link)
+	if err != nil {
 		if tgCtx.Chat().Type != telebot.ChatPrivate {
 			return nil
 		}
 
-		l.Errorw(err.Error(), "duration", time.Since(start))
+		l.Errorw(err.Error(),
+			"duration", time.Since(start),
+			"fetch_duration", stats.FetchDuration,
+			"attempts", stats.Attempts,
+		)
 
 		return replyError(tgCtx, err.Error())
 	}
@@ -129,6 +140,8 @@ func (s *handler) OnText(tgCtx telebot.Context) error {
 	l.Infow(
 		fmt.Sprintf("successfully processed the link: %s", link),
 		"duration", time.Since(start).String(),
+		"fetch_duration", stats.FetchDuration.String(),
+		"attempts", stats.Attempts,
 	)
 
 	return nil
@@ -245,24 +258,29 @@ func (s *handler) OnQuery(c telebot.Context) error {
 
 // Gets list of links from user message text
 // and processes each one of them one by one.
-func (s *handler) processLink(tgCtx telebot.Context, link string) error {
+func (s *handler) processLink(tgCtx telebot.Context, link string) (processStats, error) {
+	var stats processStats
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 	defer cancel()
 
 	linkInfo, err := s.parserService.GetLinkInfo(ctx, link)
 	if err != nil {
-		return fmt.Errorf("get link info error: %w", err)
+		return stats, fmt.Errorf("get link info error: %w", err)
 	}
 
 	// Some sources transiently return empty or URL-less items, so retry the
 	// fetch until we get usable media items.
 	var data *models.Media
-	if err := retry.New(
+	fetchStart := time.Now()
+	err = retry.New(
 		retry.WithContext(ctx),
 		retry.WithPolicy(retry.PolicyLinear),
 		retry.WithMaxAttempts(10),
 		retry.WithDelay(2*time.Second),
 	).Do(func() error {
+		stats.Attempts++
+
 		data, err = s.parserService.GetMedia(ctx, linkInfo)
 		if err != nil {
 			return err
@@ -278,17 +296,19 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 		}
 
 		return nil
-	}); err != nil {
-		return fmt.Errorf("failed to get media: %w", err)
+	})
+	stats.FetchDuration = time.Since(fetchStart)
+	if err != nil {
+		return stats, fmt.Errorf("failed to get media: %w", err)
 	}
 
 	// YouTube has special handling with quality options
 	if data.Source == models.MediaSourceYoutube {
-		return s.processYoutube(tgCtx, data)
+		return stats, s.processYoutube(tgCtx, data)
 	}
 
 	// All other sources use the generic media handler (like Instagram)
-	return s.processGenericMedia(ctx, tgCtx, data)
+	return stats, s.processGenericMedia(ctx, tgCtx, data)
 }
 
 func (s *handler) checkLimit(ctx context.Context, chatID int64) error {
