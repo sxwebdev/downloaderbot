@@ -215,7 +215,7 @@ func (s *handler) OnQuery(c telebot.Context) error {
 // Gets list of links from user message text
 // and processes each one of them one by one.
 func (s *handler) processLink(tgCtx telebot.Context, link string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 	defer cancel()
 
 	linkInfo, err := s.parserService.GetLinkInfo(ctx, link)
@@ -223,13 +223,32 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 		return fmt.Errorf("get link info error: %w", err)
 	}
 
-	data, err := s.parserService.GetMedia(ctx, linkInfo)
-	if err != nil {
-		return fmt.Errorf("failed to get media: %w", err)
-	}
+	// Some sources transiently return empty or URL-less items, so retry the
+	// fetch until we get usable media items.
+	var data *models.Media
+	if err := retry.New(
+		retry.WithContext(ctx),
+		retry.WithPolicy(retry.PolicyLinear),
+		retry.WithMaxAttempts(10),
+		retry.WithDelay(2*time.Second),
+	).Do(func() error {
+		data, err = s.parserService.GetMedia(ctx, linkInfo)
+		if err != nil {
+			return err
+		}
 
-	if len(data.Items) == 0 {
-		return fmt.Errorf("empty data items")
+		// keep only items with valid URLs
+		data.Items = lo.Filter(data.Items, func(v *models.MediaItem, _ int) bool {
+			return v.Url != ""
+		})
+
+		if len(data.Items) == 0 {
+			return fmt.Errorf("empty data items")
+		}
+
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to get media: %w", err)
 	}
 
 	// YouTube has special handling with quality options
@@ -377,15 +396,6 @@ func (s *handler) processYoutube(tgCtx telebot.Context, data *models.Media) erro
 
 // processGenericMedia handles media from all sources (Instagram, TikTok, Twitter, etc.)
 func (s *handler) processGenericMedia(tgCtx telebot.Context, data *models.Media) error {
-	// filter items with valid URLs
-	data.Items = lo.Filter(data.Items, func(v *models.MediaItem, idx int) bool {
-		return v.Url != ""
-	})
-
-	if len(data.Items) == 0 {
-		return fmt.Errorf("empty data items")
-	}
-
 	if err := s.sendMediaContent(tgCtx, data); err != nil {
 		return fmt.Errorf("couldn't send the content: %w", err)
 	}
