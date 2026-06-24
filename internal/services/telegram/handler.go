@@ -83,6 +83,8 @@ func (s *handler) Start(tgCtx telebot.Context) error {
 }
 
 func (s *handler) OnText(tgCtx telebot.Context) error {
+	start := time.Now()
+
 	l := logger.With(
 		s.logger,
 		"chat_id", tgCtx.Message().Chat.ID,
@@ -119,11 +121,15 @@ func (s *handler) OnText(tgCtx telebot.Context) error {
 			return nil
 		}
 
-		l.Error(err)
+		l.Errorw(err.Error(), "duration", time.Since(start))
+
 		return replyError(tgCtx, err.Error())
 	}
 
-	l.Infof("successfully processed the link: %s", link)
+	l.Infow(
+		fmt.Sprintf("successfully processed the link: %s", link),
+		"duration", time.Since(start).String(),
+	)
 
 	return nil
 }
