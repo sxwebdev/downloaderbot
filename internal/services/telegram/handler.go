@@ -158,17 +158,32 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		return nil
 	}
 
-	data, err := s.parserService.GetMedia(ctx, linkInfo)
-	if err != nil {
-		l.Errorf("failed to get media: %v", err)
+	// Some sources transiently return empty or URL-less items, so retry the
+	// fetch. Keep attempts low to stay within Telegram's inline query timeout.
+	var data *models.Media
+	if err := retry.New(
+		retry.WithContext(ctx),
+		retry.WithPolicy(retry.PolicyLinear),
+		retry.WithMaxAttempts(3),
+		retry.WithDelay(time.Second),
+	).Do(func() error {
+		data, err = s.parserService.GetMedia(ctx, linkInfo)
+		if err != nil {
+			return err
+		}
+
+		// keep only items with valid URLs
+		data.Items = lo.Filter(data.Items, func(v *models.MediaItem, _ int) bool {
+			return v.Url != ""
+		})
+
+		if len(data.Items) == 0 {
+			return fmt.Errorf("empty data items")
+		}
+
 		return nil
-	}
-
-	data.Items = lo.Filter(data.Items, func(v *models.MediaItem, idx int) bool {
-		return v.Url != ""
-	})
-
-	if len(data.Items) == 0 {
+	}); err != nil {
+		l.Errorf("failed to get media: %v", err)
 		return nil
 	}
 
