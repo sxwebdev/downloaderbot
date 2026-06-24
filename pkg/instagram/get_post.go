@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	browser "github.com/EDDYCJY/fake-useragent"
@@ -19,6 +22,105 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/util"
 	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"
 )
+
+const (
+	igUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+	igBaseURL   = "https://www.instagram.com"
+)
+
+// lsdTokenRe extracts the fresh "lsd" token embedded in any Instagram web page.
+var lsdTokenRe = regexp.MustCompile(`"LSD",\[\],\{"token":"([^"]+)"`)
+
+// igSession holds a fresh anonymous Instagram web session (lsd token + cookies)
+// used to sign GraphQL requests. It is cached and reused across requests, and
+// only rebuilt when a request fails (see getSession).
+type igSession struct {
+	lsd       string
+	csrftoken string
+	client    *http.Client // backed by a cookie jar so csrftoken/mid/datr persist
+}
+
+var (
+	sessionMu  sync.Mutex
+	curSession *igSession
+)
+
+// errSessionInvalid marks a GraphQL failure caused by a rejected/expired session
+// signature (as opposed to a legitimate content response). Only these failures
+// trigger a session refresh + retry.
+var errSessionInvalid = errors.New("instagram session invalid")
+
+// getSession returns the cached session, building a fresh one when none exists
+// or forceRefresh is set.
+func getSession(ctx context.Context, forceRefresh bool) (*igSession, error) {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+
+	if curSession != nil && !forceRefresh {
+		return curSession, nil
+	}
+
+	sess, err := fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	curSession = sess
+	return sess, nil
+}
+
+// fetchSession builds a new anonymous session by loading an Instagram web page
+// and harvesting the lsd token together with the csrftoken/mid/datr cookies.
+func fetchSession(ctx context.Context) (*igSession, error) {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: util.DefaultTransport(),
+		Jar:       jar,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, igBaseURL+"/", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("user-agent", igUserAgent)
+	req.Header.Set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("accept-language", "en-US,en;q=0.9")
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	body, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	match := lsdTokenRe.FindSubmatch(body)
+	if len(match) < 2 {
+		return nil, errors.New("could not extract lsd token from instagram page")
+	}
+
+	baseURL, _ := url.Parse(igBaseURL)
+	var csrftoken string
+	for _, c := range jar.Cookies(baseURL) {
+		if c.Name == "csrftoken" {
+			csrftoken = c.Value
+			break
+		}
+	}
+
+	return &igSession{
+		lsd:       string(match[1]),
+		csrftoken: csrftoken,
+		client:    client,
+	}, nil
+}
 
 // GetPostWithCode lets you to get information about specific Instagram post
 // by providing its unique shortcode
@@ -131,10 +233,33 @@ func embedRequest(ctx context.Context, code string) (*models.Media, error) {
 }
 
 func gqlRequest(ctx context.Context, code string) (*models.Media, error) {
+	sess, err := getSession(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+
+	media, err := doGQLRequest(ctx, sess, code)
+	if err == nil || !errors.Is(err, errSessionInvalid) {
+		return media, err
+	}
+
+	// The session was rejected (expired/rotated lsd token or stale cookies).
+	// Rebuild it once and retry before giving up to the embed fallback.
+	sess, refreshErr := getSession(ctx, true)
+	if refreshErr != nil {
+		return nil, refreshErr
+	}
+
+	return doGQLRequest(ctx, sess, code)
+}
+
+// doGQLRequest performs a single GraphQL post for the given shortcode using the
+// provided session.
+func doGQLRequest(ctx context.Context, sess *igSession, code string) (*models.Media, error) {
 	url := "https://www.instagram.com/api/graphql"
 	method := "POST"
 
-	payload := strings.NewReader("av=0&__d=www&__user=0&__a=1&__req=3&__hs=19702.HYP%3Ainstagram_web_pkg.2.1..0.0&dpr=2&__ccg=UNKNOWN&__rev=1010329543&__s=ytibog%3Adaumdy%3A3lk1qh&__hsi=7311321296052053265&__dyn=7xeUjG1mxu1syUbFp60DU98nwgU29zEdEc8co2qwJw5ux609vCwjE1xoswIwuo2awlU-cw5Mx62G3i1ywOwv89k2C1Fwc60AEC7U2czXwae4UaEW2G1NwwwNwKwHw8Xxm16wUwtEvw4JwJwSyES1Twoob82ZwrUdUbGwmk1xwmo6O1FwlE6OFA6fxy4Ujw&__csr=gjhXlMxdaWXDamZbmF8ytrmBqGHXRBx2vyV4iQpGvKbCGiU-eLFoSHzqDyqzaKRKFm-ahuiqimXl7ypGjx2OeuqhuBDhHDyWDAgCGGdzEOciihElzUargG4FU01cGpE2W805eiw1S606EE25G44md40dbw1aCrc1txC0uG3VzE8Q2q0nK089w0adG&__comet_req=7&lsd=AVpQxgXKVKs&jazoest=21006&__spin_r=1010329543&__spin_b=trunk&__spin_t=1702299643&fb_api_caller_class=RelayModern&fb_api_req_friendly_name=PolarisPostActionLoadPostQueryQuery&variables=%7B%22shortcode%22%3A%22" + code + "%22%2C%22fetch_comment_count%22%3A40%2C%22fetch_related_profile_media_count%22%3A3%2C%22parent_comment_count%22%3A24%2C%22child_comment_count%22%3A3%2C%22fetch_like_count%22%3A10%2C%22fetch_tagged_user_count%22%3Anull%2C%22fetch_preview_comment_count%22%3A2%2C%22has_threaded_comments%22%3Atrue%2C%22hoisted_comment_id%22%3Anull%2C%22hoisted_reply_id%22%3Anull%7D&server_timestamps=true&doc_id=10015901848480474")
+	payload := strings.NewReader("av=0&__d=www&__user=0&__a=1&__req=3&__comet_req=7&dpr=2&__ccg=UNKNOWN&lsd=" + sess.lsd + "&fb_api_caller_class=RelayModern&fb_api_req_friendly_name=PolarisPostActionLoadPostQueryQuery&variables=%7B%22shortcode%22%3A%22" + code + "%22%2C%22fetch_comment_count%22%3A40%2C%22fetch_related_profile_media_count%22%3A3%2C%22parent_comment_count%22%3A24%2C%22child_comment_count%22%3A3%2C%22fetch_like_count%22%3A10%2C%22fetch_tagged_user_count%22%3Anull%2C%22fetch_preview_comment_count%22%3A2%2C%22has_threaded_comments%22%3Atrue%2C%22hoisted_comment_id%22%3Anull%2C%22hoisted_reply_id%22%3Anull%7D&server_timestamps=true&doc_id=10015901848480474")
 
 	req, err := http.NewRequestWithContext(ctx, method, url, payload)
 	if err != nil {
@@ -143,31 +268,25 @@ func gqlRequest(ctx context.Context, code string) (*models.Media, error) {
 
 	req.Header.Add("authority", "www.instagram.com")
 	req.Header.Add("accept", "*/*")
-	req.Header.Add("accept-language", "ru")
+	req.Header.Add("accept-language", "en-US,en;q=0.9")
 	req.Header.Add("content-type", "application/x-www-form-urlencoded")
-	req.Header.Add("cookie", "csrftoken=4uEFj2FLgdivDIhwhQvWmf; mid=ZXbNoAAEAAEyW7_iU-3KhQ1e_P8O; ig_did=8447FB01-50CB-40B4-BF71-96FD60599770; datr=sAF3ZbqSNWefZVtcruJTpACc; csrftoken=FxH3VTv4mRviA8kqGgpU2B")
-	req.Header.Add("dpr", "2")
 	req.Header.Add("origin", "https://www.instagram.com")
-	req.Header.Add("referer", "https://www.instagram.com/p/CzBjgFiISfF/")
-	req.Header.Add("sec-ch-prefers-color-scheme", "dark")
-	req.Header.Add("sec-ch-ua", "\"Google Chrome\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\"")
-	req.Header.Add("sec-ch-ua-full-version-list", "\"Google Chrome\";v=\"119.0.6045.199\", \"Chromium\";v=\"119.0.6045.199\", \"Not?A_Brand\";v=\"24.0.0.0\"")
+	req.Header.Add("referer", "https://www.instagram.com/reel/"+code+"/")
+	req.Header.Add("sec-ch-ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"")
 	req.Header.Add("sec-ch-ua-mobile", "?0")
-	req.Header.Add("sec-ch-ua-model", "\"\"")
 	req.Header.Add("sec-ch-ua-platform", "\"macOS\"")
-	req.Header.Add("sec-ch-ua-platform-version", "\"13.6.1\"")
 	req.Header.Add("sec-fetch-dest", "empty")
 	req.Header.Add("sec-fetch-mode", "cors")
 	req.Header.Add("sec-fetch-site", "same-origin")
-	req.Header.Add("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
-	req.Header.Add("viewport-width", "853")
+	req.Header.Add("user-agent", igUserAgent)
 	req.Header.Add("x-asbd-id", "129477")
-	req.Header.Add("x-csrftoken", "4uEFj2FLgdivDIhwhQvWmf")
+	req.Header.Add("x-csrftoken", sess.csrftoken)
 	req.Header.Add("x-fb-friendly-name", "PolarisPostActionLoadPostQueryQuery")
-	req.Header.Add("x-fb-lsd", "AVpQxgXKVKs")
+	req.Header.Add("x-fb-lsd", sess.lsd)
 	req.Header.Add("x-ig-app-id", "936619743392459")
+	req.Header.Add("x-requested-with", "XMLHttpRequest")
 
-	res, err := util.DefaultHttpClient().Do(req)
+	res, err := sess.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -180,10 +299,16 @@ func gqlRequest(ctx context.Context, code string) (*models.Media, error) {
 
 	gqlResp := new(response.GrpahSQLResponse)
 	if err := json.Unmarshal(body, gqlResp); err != nil {
-		return nil, err
+		// Instagram returns a non-JSON error envelope (prefixed with "for (;;);")
+		// when the request signature is rejected, e.g. error 1357054.
+		return nil, fmt.Errorf("%w: unexpected graphql response: %w", errSessionInvalid, err)
 	}
 
 	data := gqlResp.Data.XdtShortcodeMedia
+
+	if data.Shortcode == "" {
+		return nil, fmt.Errorf("%w: empty graphql response for shortcode %q", errSessionInvalid, code)
+	}
 
 	if !data.IsVideo {
 		return nil, fmt.Errorf("response is not video")
