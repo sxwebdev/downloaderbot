@@ -451,10 +451,13 @@ func (s *handler) processGenericMedia(ctx context.Context, tgCtx telebot.Context
 		return fmt.Errorf("couldn't send the content: %w", err)
 	}
 
-	// Send title and caption if available
+	// Send title and caption if available. The caption is arbitrary user text
+	// and must NOT be parsed as Markdown — stray/unbalanced markup (a lone `*`,
+	// `_`, `[`, ...) makes Telegram reject the message with a 400 entity-parse
+	// error, so it is sent as plain text.
 	var captionText string
 	if data.Title != "" {
-		captionText = "*" + escapeMarkdown(data.Title) + "*\n\n"
+		captionText = data.Title + "\n\n"
 	}
 	if data.Caption != "" {
 		captionText += data.Caption
@@ -462,7 +465,7 @@ func (s *handler) processGenericMedia(ctx context.Context, tgCtx telebot.Context
 
 	if captionText != "" {
 		if err := retry.New().Do(func() error {
-			_, err := s.bot.Reply(tgCtx.Message(), captionText, telebot.ModeMarkdown)
+			_, err := s.bot.Reply(tgCtx.Message(), captionText)
 			return err
 		}); err != nil {
 			return fmt.Errorf("send caption error: %w", err)
@@ -470,17 +473,6 @@ func (s *handler) processGenericMedia(ctx context.Context, tgCtx telebot.Context
 	}
 
 	return nil
-}
-
-// escapeMarkdown escapes special Markdown characters
-func escapeMarkdown(text string) string {
-	replacer := strings.NewReplacer(
-		"*", "\\*",
-		"_", "\\_",
-		"`", "\\`",
-		"[", "\\[",
-	)
-	return replacer.Replace(text)
 }
 
 // truncateRunes returns text limited to maxRunes runes, appending an ellipsis if it was cut.

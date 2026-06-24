@@ -2,25 +2,6 @@ package telegram
 
 import "testing"
 
-func TestEscapeMarkdown(t *testing.T) {
-	tests := []struct {
-		in, want string
-	}{
-		{"hello", "hello"},
-		{"*bold*", "\\*bold\\*"},
-		{"a_b_c", "a\\_b\\_c"},
-		{"code: `x`", "code: \\`x\\`"},
-		{"[link]", "\\[link]"},
-		{"mix *a_b* `c` [d]", "mix \\*a\\_b\\* \\`c\\` \\[d]"},
-	}
-
-	for _, tc := range tests {
-		if got := escapeMarkdown(tc.in); got != tc.want {
-			t.Errorf("escapeMarkdown(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
-
 func TestTruncateRunes(t *testing.T) {
 	tests := []struct {
 		name string
