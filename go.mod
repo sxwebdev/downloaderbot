@@ -16,7 +16,7 @@ require (
 	github.com/sxwebdev/xconfig v0.4.1
 	github.com/sxwebdev/xconfig/decoders/xconfigdotenv v0.0.0-20260505165448-c5f59ca4c792
 	github.com/sxwebdev/xconfig/decoders/xconfigyaml v0.0.0-20260505165448-c5f59ca4c792
-	github.com/sxwebdev/xutils v0.0.0-20260416190945-ca5606ca1d2f
+	github.com/sxwebdev/xutils v0.0.0-20260624163014-29459ea09ce7
 	github.com/tkcrm/modules v0.0.0-20250909093305-a0b86c209cc5
 	github.com/tkcrm/mx v0.5.0
 	github.com/tkcrm/mx/transport/grpc_transport v0.0.0-20260416191035-f96923f6e391

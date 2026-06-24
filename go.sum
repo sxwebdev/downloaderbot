@@ -489,8 +489,8 @@ github.com/sxwebdev/xconfig/decoders/xconfigdotenv v0.0.0-20260505165448-c5f59ca
 github.com/sxwebdev/xconfig/decoders/xconfigdotenv v0.0.0-20260505165448-c5f59ca4c792/go.mod h1:T2L+SR8fm5c9BQEKHlhsLsKR1yvJECflv65K7t/+sJw=
 github.com/sxwebdev/xconfig/decoders/xconfigyaml v0.0.0-20260505165448-c5f59ca4c792 h1:ya6dNZpCrp0qrcgpMBb1eT67wYZVWXqUn0Wz1cbOa2s=
 github.com/sxwebdev/xconfig/decoders/xconfigyaml v0.0.0-20260505165448-c5f59ca4c792/go.mod h1:pZP8dv6J/FmYeyrF9cMIig4/d7X2b7fq3c9NAPbX6YI=
-github.com/sxwebdev/xutils v0.0.0-20260416190945-ca5606ca1d2f h1:lpP1VvTEk/WfbEezEEfW5CKkReG0atK+tTF0VCsfISo=
-github.com/sxwebdev/xutils v0.0.0-20260416190945-ca5606ca1d2f/go.mod h1:p81HSaJJN36wTkwM8ubjN5MarBGFiUsG/dPevy8HlF0=
+github.com/sxwebdev/xutils v0.0.0-20260624163014-29459ea09ce7 h1:F386oSLs6YgkxfxbO4xUiEXWm4QxnV5fFMbaNpNrVME=
+github.com/sxwebdev/xutils v0.0.0-20260624163014-29459ea09ce7/go.mod h1:NSf6TEDo8UJ5/2dr24uZ6l/nJEvKM+sp93gHZi/jvNE=
 github.com/temoto/robotstxt v1.1.2 h1:W2pOjSJ6SWvldyEuiFXNxz3xZ8aiWX5LbfDiOFd7Fxg=
 github.com/temoto/robotstxt v1.1.2/go.mod h1:+1AmkuG3IYkh1kv0d2qEB9Le88ehNO0zwOr3ujewlOo=
 github.com/tkcrm/modules v0.0.0-20250909093305-a0b86c209cc5 h1:rqtgAZFbz/Vdnyf6GvoUEP4DWgqvj6/PsI3Gce81h5A=
