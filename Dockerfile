@@ -29,7 +29,6 @@ WORKDIR /app
 COPY --from=builder --chown=appuser:appuser /app/bin/downloaderbot .
 
 COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip .
-ENV TZ=Europe/Moscow
 ENV ZONEINFO=/app/zoneinfo.zip
 
 USER appuser
