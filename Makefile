@@ -64,5 +64,13 @@ infra-logs:
 infra-exec:
 	$(docker_compose_cli) exec $(filter-out $@,$(MAKECMDGOALS)) sh
 
-web-minio:
-	open http://localhost:${MINIO_CONSOLE_PORT}/
+# Release
+release:
+	@if [ -z "$(TAG)" ]; then echo "Usage: make release TAG=v1.2.3"; exit 1; fi
+	git tag -a $(TAG) -m "Release $(TAG)"
+	git push origin $(TAG)
+
+# Local dry run of the release: builds binaries and renders the changelog
+# into ./dist without creating a tag or publishing anything.
+release-preview:
+	goreleaser release --snapshot --clean --skip=publish
