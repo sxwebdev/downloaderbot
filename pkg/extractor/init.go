@@ -3,6 +3,7 @@ package extractor
 import (
 	extInstagram "github.com/sxwebdev/downloaderbot/pkg/extractor/instagram"
 	extLux "github.com/sxwebdev/downloaderbot/pkg/extractor/lux"
+	extTiktok "github.com/sxwebdev/downloaderbot/pkg/extractor/tiktok"
 	extYoutube "github.com/sxwebdev/downloaderbot/pkg/extractor/youtube"
 )
 
@@ -18,6 +19,11 @@ func init() {
 	// Register YouTube extractor (custom implementation)
 	if err := DefaultRegistry.Register(extYoutube.New()); err != nil {
 		panic("register youtube extractor: " + err.Error())
+	}
+
+	// Register TikTok extractor (custom rod-based implementation)
+	if err := DefaultRegistry.Register(extTiktok.New()); err != nil {
+		panic("register tiktok extractor: " + err.Error())
 	}
 
 	// Register all lux-based extractors

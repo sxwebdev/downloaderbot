@@ -45,6 +45,18 @@ docker-push:
 		--build-arg BUILD_DATE=`date -u +'%Y-%m-%dT%H:%M:%SZ'` \
 		-t ${docker_repo}:latest .
 
+# Local image build for testing (loads into the local docker daemon, no push)
+docker-build:
+	docker build \
+		--build-arg VERSION=`git describe --tags --abbrev=0 || echo "0.0.0"` \
+		--build-arg COMMIT_HASH=`git rev-parse --short HEAD` \
+		--build-arg BUILD_DATE=`date -u +'%Y-%m-%dT%H:%M:%SZ'` \
+		-t downloaderbot:test .
+
+# Run the locally built test image (requires .env with TELEGRAM_BOT_API_TOKEN)
+docker-run: docker-build
+	docker run --rm -it --env-file .env downloaderbot:test start
+
 # Infrasctructure
 infra-start:
 	$(docker_compose_cli) up -d $(filter-out $@,$(MAKECMDGOALS))

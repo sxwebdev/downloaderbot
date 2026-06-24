@@ -6,6 +6,7 @@ require (
 	github.com/EDDYCJY/fake-useragent v0.2.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/go-playground/validator/v10 v10.30.3
+	github.com/go-rod/rod v0.116.2
 	github.com/goccy/go-yaml v1.19.2
 	github.com/iawia002/lux v0.24.1
 	github.com/kkdai/youtube/v2 v2.10.6
@@ -78,6 +79,11 @@ require (
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
+	github.com/ysmood/fetchup v0.2.3 // indirect
+	github.com/ysmood/goob v0.4.0 // indirect
+	github.com/ysmood/got v0.40.0 // indirect
+	github.com/ysmood/gson v0.7.3 // indirect
+	github.com/ysmood/leakless v0.9.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect

@@ -98,10 +98,8 @@ var siteToSource = map[string]models.MediaSource{
 
 // hostToSite maps host patterns to lux site names
 var hostToSite = map[string]string{
-	// TikTok
-	"tiktok.com":    "tiktok",
-	"vm.tiktok.com": "tiktok",
-	"vt.tiktok.com": "tiktok",
+	// TikTok is handled by the custom rod-based extractor (pkg/extractor/tiktok),
+	// because lux's TikTok extractor is blocked by anti-bot. Do not map it here.
 	// Twitter/X (note: `mobile.` and `www.` are normalized away by the registry)
 	"twitter.com": "twitter",
 	"x.com":       "twitter",

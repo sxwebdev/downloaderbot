@@ -20,7 +20,14 @@ RUN go build -trimpath -ldflags="-w -s -X 'main.version=${VERSION}' -X 'main.com
 
 FROM alpine:latest
 
-RUN apk add --no-cache iputils busybox-extras curl
+# chromium + fonts are needed for the headless-browser Instagram fetcher (go-rod).
+RUN apk add --no-cache \
+	iputils busybox-extras curl \
+	chromium nss freetype harfbuzz ca-certificates ttf-freefont font-noto-emoji
+
+# Point the browser fetcher at the system Chromium instead of letting go-rod
+# download its own (which would not match Alpine/musl).
+ENV BROWSER_BIN=/usr/bin/chromium-browser
 
 RUN adduser -D -g '' appuser
 

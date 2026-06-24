@@ -14,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/sxwebdev/downloaderbot/internal/config"
 	"github.com/sxwebdev/downloaderbot/internal/limiter"
+	"github.com/sxwebdev/downloaderbot/internal/media"
 	"github.com/sxwebdev/downloaderbot/internal/metrics"
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
@@ -24,6 +25,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/telebot.v3"
 )
+
+// maxFileSize is the Telegram Bot API upload limit for files sent by a bot.
+const maxFileSize = 50 * 1024 * 1024
 
 type handler struct {
 	logger logger.Logger
@@ -191,34 +195,40 @@ func (s *handler) OnQuery(c telebot.Context) error {
 
 	description := truncateRunes(data.Caption, 1000)
 
-	results := make(telebot.Results, len(data.Items))
+	results := make(telebot.Results, 0, len(data.Items))
 	for i, item := range data.Items {
+		// Inline results can only reference a publicly fetchable URL (Telegram
+		// downloads it itself). Items that require download headers (e.g. TikTok)
+		// can't be offered inline — skip them. See README "Known limitations".
+		directURL, ok := media.Default().DirectURL(item)
+		if !ok {
+			continue
+		}
+
+		var result telebot.Result
 		switch item.Type {
 		case models.MediaTypeVideo:
-			result := &telebot.VideoResult{
+			result = &telebot.VideoResult{
 				Title:       fmt.Sprintf("video-%d", i+1),
 				Description: description,
 				MIME:        "video/mp4",
-				URL:         item.Url,
-				ThumbURL:    item.Url,
+				URL:         directURL,
+				ThumbURL:    directURL,
 				Width:       item.Width,
 				Height:      item.Height,
 			}
-
-			results[i] = result
 		case models.MediaTypePhoto:
-			result := &telebot.PhotoResult{
-				URL:      item.Url,
-				ThumbURL: item.Url, // required for photos
+			result = &telebot.PhotoResult{
+				URL:      directURL,
+				ThumbURL: directURL, // required for photos
 			}
-
-			results[i] = result
 		default:
 			continue
 		}
 
 		// needed to set a unique string ID for each result
-		results[i].SetResultID(strconv.Itoa(i))
+		result.SetResultID(strconv.Itoa(i))
+		results = append(results, result)
 	}
 
 	return c.Answer(&telebot.QueryResponse{
@@ -272,7 +282,7 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) error {
 	}
 
 	// All other sources use the generic media handler (like Instagram)
-	return s.processGenericMedia(tgCtx, data)
+	return s.processGenericMedia(ctx, tgCtx, data)
 }
 
 func (s *handler) checkLimit(ctx context.Context, chatID int64) error {
@@ -410,8 +420,8 @@ func (s *handler) processYoutube(tgCtx telebot.Context, data *models.Media) erro
 }
 
 // processGenericMedia handles media from all sources (Instagram, TikTok, Twitter, etc.)
-func (s *handler) processGenericMedia(tgCtx telebot.Context, data *models.Media) error {
-	if err := s.sendMediaContent(tgCtx, data); err != nil {
+func (s *handler) processGenericMedia(ctx context.Context, tgCtx telebot.Context, data *models.Media) error {
+	if err := s.sendMediaContent(ctx, tgCtx, data); err != nil {
 		return fmt.Errorf("couldn't send the content: %w", err)
 	}
 
@@ -473,27 +483,28 @@ func (s *handler) replyTooLarge(tgCtx telebot.Context, sourceURL string) error {
 	return nil
 }
 
-func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) error {
+func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, data *models.Media) error {
 	if len(data.Items) == 1 {
 		mediaItem := data.Items[0]
 
-		if mediaItem.ContentLength > 50*1024*1024 {
+		if mediaItem.ContentLength > maxFileSize {
 			return s.replyTooLarge(tgCtx, mediaItem.Url)
 		}
 
-		body, err := mediaItem.FetchMedia()
+		content, err := media.Default().Open(ctx, mediaItem)
 		if err != nil {
 			return err
 		}
+		body := content.Body
 		defer body.Close()
 
-		// FetchMedia updates ContentLength from response header — recheck before streaming
-		if mediaItem.ContentLength > 50*1024*1024 {
+		// Open reports the real size from the response header — recheck before streaming
+		if content.ContentLength > maxFileSize {
 			return s.replyTooLarge(tgCtx, mediaItem.Url)
 		}
 
-		if mediaItem.ContentLength > 0 {
-			metrics.MediaSizeBytes.Observe(float64(mediaItem.ContentLength))
+		if content.ContentLength > 0 {
+			metrics.MediaSizeBytes.Observe(float64(content.ContentLength))
 		}
 
 		// handle video
@@ -531,7 +542,7 @@ func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) er
 	}
 
 	for chunk := range slices.Chunk(data.Items, 10) {
-		album, err := generateAlbumFromMedia(chunk)
+		album, err := generateAlbumFromMedia(ctx, chunk)
 		if err != nil {
 			return fmt.Errorf("couldn't generate the album: %w", err)
 		}
@@ -548,38 +559,43 @@ func (s *handler) sendMediaContent(tgCtx telebot.Context, data *models.Media) er
 	return nil
 }
 
-func generateAlbumFromMedia(items []*models.MediaItem) (telebot.Album, error) {
+func generateAlbumFromMedia(ctx context.Context, items []*models.MediaItem) (telebot.Album, error) {
 	album := util.NewSliceWithLength[telebot.Inputtable](len(items))
 
 	eg := errgroup.Group{}
 	eg.SetLimit(5)
 
-	for idx, media := range items {
+	for idx, item := range items {
 		eg.Go(func() error {
-			body, err := media.FetchMedia()
+			content, err := media.Default().Open(ctx, item)
 			if err != nil {
 				return err
 			}
-			defer body.Close()
+			defer content.Body.Close()
 
-			data, err := io.ReadAll(body)
+			// Guard before buffering the whole item into memory.
+			if content.ContentLength > maxFileSize {
+				return fmt.Errorf("media item exceeds %d bytes", int64(maxFileSize))
+			}
+
+			data, err := io.ReadAll(content.Body)
 			if err != nil {
 				return err
 			}
 			buf := bytes.NewReader(data)
 
-			if media.Type.IsVideo() {
+			if item.Type.IsVideo() {
 				album.AddToIndex(idx, &telebot.Video{
 					File:   telebot.FromReader(buf),
-					Width:  media.Width,
-					Height: media.Height,
-					MIME:   media.MimeType,
+					Width:  item.Width,
+					Height: item.Height,
+					MIME:   item.MimeType,
 				})
 			} else {
 				album.AddToIndex(idx, &telebot.Photo{
 					File:   telebot.FromReader(buf),
-					Width:  media.Width,
-					Height: media.Height,
+					Width:  item.Width,
+					Height: item.Height,
 				})
 			}
 

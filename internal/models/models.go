@@ -1,10 +1,6 @@
 package models
 
 import (
-	"fmt"
-	"io"
-
-	"github.com/sxwebdev/downloaderbot/internal/util"
 	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"
 )
 
@@ -31,26 +27,10 @@ type MediaItem struct {
 	MimeType          string    `json:"mime_type"`
 	Width             int       `json:"width"`
 	Height            int       `json:"height"`
-}
-
-func (s *MediaItem) FetchMedia() (io.ReadCloser, error) {
-	if s.Url == "" {
-		return nil, fmt.Errorf("empty url")
-	}
-
-	resp, err := util.DefaultHttpClient().Get(s.Url)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode/100 != 2 {
-		resp.Body.Close()
-		return nil, fmt.Errorf("source returned %s", resp.Status)
-	}
-	if resp.ContentLength > 0 {
-		s.ContentLength = resp.ContentLength
-	}
-
-	return resp.Body, nil
+	// DownloadHeaders are extra HTTP headers required to download Url (e.g.
+	// TikTok CDN needs Referer + Cookie). Empty for sources whose URLs are
+	// publicly fetchable. Downloading is handled by internal/media.Loader.
+	DownloadHeaders map[string]string `json:"-"`
 }
 
 // Media which contains a single Instagram post

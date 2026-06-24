@@ -9,11 +9,18 @@ import (
 )
 
 // Extractor implements the extractor.Extractor interface for Instagram
-type Extractor struct{}
+type Extractor struct {
+	fetcher instagram.Fetcher
+}
 
-// New creates a new Instagram extractor
+// New creates a new Instagram extractor. It uses the browser-based fetcher by
+// default, which drives a real headless Chromium and so bypasses Instagram's
+// anti-bot challenges that break the legacy HTTP fetcher. The legacy fetcher
+// remains available via instagram.NewAPIFetcher().
 func New() *Extractor {
-	return &Extractor{}
+	return &Extractor{
+		fetcher: instagram.NewBrowserFetcher(),
+	}
 }
 
 // Name returns the extractor name
@@ -37,7 +44,7 @@ func (e *Extractor) Extract(ctx context.Context, url string) (*models.Media, err
 	}
 
 	// Get media data
-	media, err := instagram.GetPostWithCode(ctx, code)
+	media, err := e.fetcher.GetPost(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get post: %w", err)
 	}

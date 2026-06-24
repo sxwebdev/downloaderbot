@@ -3,7 +3,6 @@ package instagram_test
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -12,8 +11,8 @@ import (
 )
 
 func TestGetPostWithCode(t *testing.T) {
-	if os.Getenv("INTEGRATION_TESTS") != "1" {
-		t.Skip("integration test; set INTEGRATION_TESTS=1 to run")
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
 	}
 
 	tests := []struct {

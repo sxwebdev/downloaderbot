@@ -9,6 +9,7 @@ import (
 	"github.com/sxwebdev/downloaderbot/internal/limiter"
 	"github.com/sxwebdev/downloaderbot/internal/services/parser"
 	"github.com/sxwebdev/downloaderbot/internal/services/telegram"
+	"github.com/sxwebdev/downloaderbot/pkg/browser"
 	"github.com/tkcrm/mx/launcher"
 	"github.com/tkcrm/mx/launcher/services/pingpong"
 	"github.com/tkcrm/mx/logger"
@@ -67,6 +68,17 @@ func startCMD(l logger.ExtendedLogger) *cli.Command {
 				launcher.NewService(launcher.WithService(grpcServer)),
 				launcher.NewService(launcher.WithService(telegramService)),
 			)
+
+			// Shut the shared headless browser down on exit (no-op if never started).
+			defer func() { _ = browser.Default().Close() }()
+
+			// Pre-warm the headless browser so the first (time-boxed) inline query
+			// doesn't pay the cold-start launch cost.
+			go func() {
+				if err := browser.Default().Warmup(); err != nil {
+					l.Warnf("browser warmup failed: %v", err)
+				}
+			}()
 
 			return ln.Run()
 		},
