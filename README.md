@@ -2,8 +2,6 @@
 
 This bot downloads media files from Instagram and YouTube and uploads them to the telegram bot
 
-Try to chek it: [@mxsaverbot](https://t.me/mxsaverbot)
-
 ## Environment variables
 
 Environment variables are [here](ENVS.md)
