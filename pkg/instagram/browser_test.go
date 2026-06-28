@@ -53,7 +53,9 @@ func TestBrowserFetcher(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			start := time.Now()
 			media, err := f.GetPost(t.Context(), code)
+			elapsed := time.Since(start)
 			if err != nil {
 				t.Fatalf("GetPost: %v", err)
 			}
@@ -61,7 +63,18 @@ func TestBrowserFetcher(t *testing.T) {
 				t.Fatalf("no media items extracted: %+v", media)
 			}
 
-			t.Logf("type=%s caption=%.40q url=%.80s", media.Type, media.Caption, media.Items[0].Url)
+			item := media.Items[0]
+			t.Logf("type=%s %dx%d in %s caption=%.40q url=%.80s",
+				media.Type, item.Width, item.Height, elapsed.Round(time.Millisecond), media.Caption, item.Url)
+
+			// Reels are vertical: the dimensions sent to Telegram must be portrait,
+			// not the squeezed square the first-match parser used to produce.
+			if item.Width <= 0 || item.Height <= 0 {
+				t.Fatalf("missing dimensions: %dx%d", item.Width, item.Height)
+			}
+			if item.Width >= item.Height {
+				t.Fatalf("expected portrait reel, got %dx%d", item.Width, item.Height)
+			}
 
 			client := &http.Client{Timeout: 10 * time.Second}
 			resp, err := client.Head(media.Items[0].Url)

@@ -26,9 +26,30 @@ const UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/5
 // navTimeout bounds a single page navigation + load.
 const navTimeout = 40 * time.Second
 
-// settleDelay lets client-side hydration and short-link redirects (e.g.
-// vt.tiktok.com) finish before the page HTML is snapshotted.
+// settleDelay is the upper bound spent waiting for client-side hydration and
+// short-link redirects (e.g. vt.tiktok.com) to finish before the page HTML is
+// snapshotted. With a WithReady predicate, Load returns as soon as the wanted
+// markup appears and only waits this long as a fallback.
 const settleDelay = 1500 * time.Millisecond
+
+// pollInterval is how often Load re-checks the rendered HTML against a ready
+// predicate while waiting out the settle window.
+const pollInterval = 150 * time.Millisecond
+
+// LoadOption configures a single Load call.
+type LoadOption func(*loadConfig)
+
+type loadConfig struct {
+	ready func(html string) bool
+}
+
+// WithReady makes Load snapshot and return as soon as pred matches the rendered
+// HTML, instead of always waiting out settleDelay. Callers pass a predicate that
+// detects their source's embedded JSON (e.g. Instagram's "video_versions"); this
+// is what trims the per-request latency once resources are blocked.
+func WithReady(pred func(html string) bool) LoadOption {
+	return func(c *loadConfig) { c.ready = pred }
+}
 
 // Result is the outcome of loading a page.
 type Result struct {
@@ -161,7 +182,12 @@ func (m *Manager) Close() error {
 
 // Load opens url in the shared browser, waits for it to load, and returns the
 // rendered HTML, the final URL (after redirects) and the visit cookies.
-func (m *Manager) Load(ctx context.Context, url string) (*Result, error) {
+func (m *Manager) Load(ctx context.Context, url string, opts ...LoadOption) (*Result, error) {
+	var cfg loadConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	// Register as in-flight before acquiring the browser so Close waits for us.
 	m.mu.Lock()
 	if m.closed {
@@ -185,6 +211,16 @@ func (m *Manager) Load(ctx context.Context, url string) (*Result, error) {
 
 	page = page.Context(ctx).Timeout(navTimeout)
 
+	// Block the heavy resource types the extractors never use (images, video,
+	// fonts, stylesheets). Everything we need lives in the server-rendered JSON,
+	// so dropping these makes the page reach a usable state far sooner.
+	router := page.HijackRequests()
+	if err := router.Add("*", "", blockHeavyResources); err != nil {
+		return nil, fmt.Errorf("set up request hijack: %w", err)
+	}
+	go router.Run()
+	defer func() { _ = router.Stop() }()
+
 	if err := page.SetUserAgent(&proto.NetworkSetUserAgentOverride{UserAgent: UserAgent}); err != nil {
 		return nil, fmt.Errorf("set user agent: %w", err)
 	}
@@ -198,16 +234,9 @@ func (m *Manager) Load(ctx context.Context, url string) (*Result, error) {
 		_ = page.WaitLoad()
 	}
 
-	// Let hydration / redirects settle before snapshotting the HTML.
-	select {
-	case <-time.After(settleDelay):
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-
-	html, err := page.HTML()
+	html, err := settle(ctx, page, cfg.ready)
 	if err != nil {
-		return nil, fmt.Errorf("read page html: %w", err)
+		return nil, err
 	}
 
 	cookies, err := page.Cookies(nil)
@@ -220,4 +249,56 @@ func (m *Manager) Load(ctx context.Context, url string) (*Result, error) {
 		res.FinalURL = info.URL
 	}
 	return res, nil
+}
+
+// blockHeavyResources fails image/media/font/stylesheet requests and lets the
+// rest through, so navigation does not stall on assets the extractors discard.
+func blockHeavyResources(h *rod.Hijack) {
+	switch h.Request.Type() {
+	case proto.NetworkResourceTypeImage,
+		proto.NetworkResourceTypeMedia,
+		proto.NetworkResourceTypeFont,
+		proto.NetworkResourceTypeStylesheet:
+		h.Response.Fail(proto.NetworkErrorReasonBlockedByClient)
+	default:
+		h.ContinueRequest(&proto.FetchContinueRequest{})
+	}
+}
+
+// settle returns the rendered HTML once the page is ready. With a ready
+// predicate it polls and returns as soon as the wanted markup appears, capping
+// the wait at settleDelay; without one it simply waits out settleDelay to let
+// hydration / short-link redirects finish (the legacy behavior).
+func settle(ctx context.Context, page *rod.Page, ready func(string) bool) (string, error) {
+	deadline := time.After(settleDelay)
+
+	if ready != nil {
+		for {
+			if html, err := page.HTML(); err == nil && ready(html) {
+				return html, nil
+			}
+			select {
+			case <-deadline:
+				return readHTML(page)
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(pollInterval):
+			}
+		}
+	}
+
+	select {
+	case <-deadline:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	return readHTML(page)
+}
+
+func readHTML(page *rod.Page) (string, error) {
+	html, err := page.HTML()
+	if err != nil {
+		return "", fmt.Errorf("read page html: %w", err)
+	}
+	return html, nil
 }
