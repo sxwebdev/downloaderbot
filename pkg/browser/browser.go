@@ -227,12 +227,6 @@ func (m *Manager) Load(ctx context.Context, url string, opts ...LoadOption) (*Re
 	if err := page.Navigate(url); err != nil {
 		return nil, fmt.Errorf("navigate: %w", err)
 	}
-	// Short-link redirects (e.g. vt.tiktok.com) re-navigate the target, which can
-	// make WaitLoad return a transient "navigated or closed" error. Retry once,
-	// then proceed best-effort rather than failing the whole load.
-	if err := page.WaitLoad(); err != nil {
-		_ = page.WaitLoad()
-	}
 
 	html, err := settle(ctx, page, cfg.ready)
 	if err != nil {
@@ -266,33 +260,54 @@ func blockHeavyResources(h *rod.Hijack) {
 }
 
 // settle returns the rendered HTML once the page is ready. With a ready
-// predicate it polls and returns as soon as the wanted markup appears, capping
-// the wait at settleDelay; without one it simply waits out settleDelay to let
-// hydration / short-link redirects finish (the legacy behavior).
+// predicate it polls from the moment navigation starts and returns as soon as
+// the wanted markup appears — the media JSON is in the server-rendered document,
+// so that is usually well before the load event, which is why we do not block on
+// WaitLoad first. WaitLoad runs concurrently only to bound the case where the
+// markup never appears (an error/login/interstitial page): once the page has
+// finished loading we allow a short settleDelay grace for late hydration or a
+// short-link redirect, then snapshot best-effort. Without a predicate it simply
+// waits out settleDelay after the load event (the legacy behavior).
 func settle(ctx context.Context, page *rod.Page, ready func(string) bool) (string, error) {
-	deadline := time.After(settleDelay)
+	if ready == nil {
+		// Short-link redirects (e.g. vt.tiktok.com) re-navigate the target, which
+		// can make WaitLoad return a transient "navigated or closed" error. Retry
+		// once, then proceed best-effort rather than failing the whole load.
+		if err := page.WaitLoad(); err != nil {
+			_ = page.WaitLoad()
+		}
+		select {
+		case <-time.After(settleDelay):
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+		return readHTML(page)
+	}
 
-	if ready != nil {
-		for {
-			if html, err := page.HTML(); err == nil && ready(html) {
-				return html, nil
-			}
-			select {
-			case <-deadline:
-				return readHTML(page)
-			case <-ctx.Done():
-				return "", ctx.Err()
-			case <-time.After(pollInterval):
-			}
+	loaded := make(chan struct{})
+	go func() {
+		_ = page.WaitLoad()
+		close(loaded)
+	}()
+
+	var grace <-chan time.Time
+	for {
+		if html, err := page.HTML(); err == nil && ready(html) {
+			return html, nil
+		}
+		select {
+		case <-loaded:
+			// Page finished loading without the markup yet; give late hydration /
+			// redirects a brief window, then fall back to a best-effort snapshot.
+			loaded = nil
+			grace = time.After(settleDelay)
+		case <-grace:
+			return readHTML(page)
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(pollInterval):
 		}
 	}
-
-	select {
-	case <-deadline:
-	case <-ctx.Done():
-		return "", ctx.Err()
-	}
-	return readHTML(page)
 }
 
 func readHTML(page *rod.Page) (string, error) {
