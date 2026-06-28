@@ -31,6 +31,13 @@ type Loader interface {
 	// Open streams the item's content, applying any required download headers.
 	// The caller must close Content.Body.
 	Open(ctx context.Context, item *models.MediaItem) (*Content, error)
+
+	// ContentLength reports the item's size in bytes via a HEAD request, applying
+	// any required download headers. Returns -1 when the source does not report a
+	// size. Lets callers decide on the size without downloading the body (e.g.
+	// inline queries that must offer a download link for files over Telegram's
+	// upload limit).
+	ContentLength(ctx context.Context, item *models.MediaItem) (int64, error)
 }
 
 type httpLoader struct {
@@ -82,4 +89,29 @@ func (l *httpLoader) Open(ctx context.Context, item *models.MediaItem) (*Content
 	}
 
 	return &Content{Body: resp.Body, ContentLength: resp.ContentLength}, nil
+}
+
+func (l *httpLoader) ContentLength(ctx context.Context, item *models.MediaItem) (int64, error) {
+	if item == nil || item.Url == "" {
+		return 0, fmt.Errorf("empty url")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, item.Url, nil)
+	if err != nil {
+		return 0, err
+	}
+	for k, v := range item.DownloadHeaders {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := l.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return 0, fmt.Errorf("source returned %s", resp.Status)
+	}
+
+	return resp.ContentLength, nil
 }
