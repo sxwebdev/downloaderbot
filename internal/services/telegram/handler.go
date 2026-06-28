@@ -35,6 +35,36 @@ type processStats struct {
 	Attempts      int           // number of fetch attempts performed
 }
 
+// requestKind labels where a request originated, for structured logs.
+type requestKind string
+
+const (
+	kindChat   requestKind = "chat"
+	kindInline requestKind = "inline"
+)
+
+// requestLogger builds the per-request logger shared by the chat and inline
+// handlers, tagging every line with the request kind and the user/chat id.
+func (s *handler) requestLogger(kind requestKind, chatID int64) logger.Logger {
+	return logger.With(s.logger, "type", string(kind), "chat_id", chatID)
+}
+
+// logResult emits the standard completion log for a handled link — success or
+// error — with timing and attempt stats. Shared so chat and inline produce
+// identical output.
+func logResult(l logger.Logger, link string, start time.Time, stats processStats, err error) {
+	fields := []any{
+		"duration", time.Since(start).String(),
+		"fetch_duration", stats.FetchDuration.String(),
+		"attempts", stats.Attempts,
+	}
+	if err != nil {
+		l.Errorw(err.Error(), fields...)
+		return
+	}
+	l.Infow(fmt.Sprintf("successfully processed the link: %s", link), fields...)
+}
+
 type handler struct {
 	logger logger.Logger
 	config *config.Config
@@ -91,10 +121,7 @@ func (s *handler) Start(tgCtx telebot.Context) error {
 func (s *handler) OnText(tgCtx telebot.Context) error {
 	start := time.Now()
 
-	l := logger.With(
-		s.logger,
-		"chat_id", tgCtx.Message().Chat.ID,
-	)
+	l := s.requestLogger(kindChat, tgCtx.Message().Chat.ID)
 
 	metrics.PrivateMessageRequests.Inc()
 
@@ -128,30 +155,19 @@ func (s *handler) OnText(tgCtx telebot.Context) error {
 			return nil
 		}
 
-		l.Errorw(err.Error(),
-			"duration", time.Since(start),
-			"fetch_duration", stats.FetchDuration,
-			"attempts", stats.Attempts,
-		)
-
+		logResult(l, link, start, stats, err)
 		return replyError(tgCtx, err.Error())
 	}
 
-	l.Infow(
-		fmt.Sprintf("successfully processed the link: %s", link),
-		"duration", time.Since(start).String(),
-		"fetch_duration", stats.FetchDuration.String(),
-		"attempts", stats.Attempts,
-	)
+	logResult(l, link, start, stats, nil)
 
 	return nil
 }
 
 func (s *handler) OnQuery(c telebot.Context) error {
-	l := logger.With(
-		s.logger,
-		"chat_id", c.Query().Sender.ID,
-	)
+	start := time.Now()
+
+	l := s.requestLogger(kindInline, c.Query().Sender.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
@@ -164,50 +180,31 @@ func (s *handler) OnQuery(c telebot.Context) error {
 
 	links := util.ExtractLinksFromString(c.Query().Text)
 
+	// Inline queries fire on every keystroke, so only act on a complete link.
 	if len(links) != 1 {
 		return nil
 	}
 
 	link := links[0]
 
+	l.Infof("request from user: %s", link)
+
 	linkInfo, err := s.parserService.GetLinkInfo(ctx, link)
 	if err != nil {
 		l.Warnf("get link info error: %s", err)
-		return fmt.Errorf("get link info error: %w", err)
+		return answerInlineError(c, "Couldn't process this link")
 	}
 
 	// YouTube inline queries are not supported due to large file sizes
 	if linkInfo.MediaSource == models.MediaSourceYoutube {
-		return nil
+		return answerInlineError(c, "YouTube is not supported in inline mode")
 	}
 
-	// Some sources transiently return empty or URL-less items, so retry the
-	// fetch. Keep attempts low to stay within Telegram's inline query timeout.
-	var data *models.Media
-	if err := retry.New(
-		retry.WithContext(ctx),
-		retry.WithPolicy(retry.PolicyLinear),
-		retry.WithMaxAttempts(3),
-		retry.WithDelay(time.Second),
-	).Do(func() error {
-		data, err = s.parserService.GetMedia(ctx, linkInfo)
-		if err != nil {
-			return err
-		}
-
-		// keep only items with valid URLs
-		data.Items = lo.Filter(data.Items, func(v *models.MediaItem, _ int) bool {
-			return v.Url != ""
-		})
-
-		if len(data.Items) == 0 {
-			return fmt.Errorf("empty data items")
-		}
-
-		return nil
-	}); err != nil {
-		l.Errorf("failed to get media: %v", err)
-		return nil
+	// Keep attempts low to stay within Telegram's inline query timeout.
+	data, stats, err := s.fetchMedia(ctx, linkInfo, 3, time.Second)
+	if err != nil {
+		logResult(l, link, start, stats, err)
+		return answerInlineError(c, "Failed to fetch media, please try again")
 	}
 
 	metrics.InlineRequests.Inc()
@@ -227,6 +224,12 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		var result telebot.Result
 		switch item.Type {
 		case models.MediaTypeVideo:
+			// Telegram can't deliver a video over its 50MB cap as an inline result,
+			// so offer a download link instead — same fallback as the chat handler.
+			if size, err := media.Default().ContentLength(ctx, item); err == nil && size > maxFileSize {
+				result = tooLargeResult(directURL)
+				break
+			}
 			result = &telebot.VideoResult{
 				Title:       fmt.Sprintf("video-%d", i+1),
 				Description: description,
@@ -250,6 +253,15 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		results = append(results, result)
 	}
 
+	// Nothing could be offered inline (e.g. TikTok items need download headers and
+	// can't be referenced by URL) — tell the user instead of showing an empty list.
+	if len(results) == 0 {
+		l.Warnf("no inline-able results for link: %s", link)
+		return answerInlineError(c, "This media can't be sent inline")
+	}
+
+	logResult(l, link, start, stats, nil)
+
 	return c.Answer(&telebot.QueryResponse{
 		Results:   results,
 		CacheTime: 60, // a minute
@@ -269,18 +281,38 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) (processStats,
 		return stats, fmt.Errorf("get link info error: %w", err)
 	}
 
-	// Some sources transiently return empty or URL-less items, so retry the
-	// fetch until we get usable media items.
+	data, stats, err := s.fetchMedia(ctx, linkInfo, 3, 2*time.Second)
+	if err != nil {
+		return stats, err
+	}
+
+	// YouTube has special handling with quality options
+	if data.Source == models.MediaSourceYoutube {
+		return stats, s.processYoutube(tgCtx, data)
+	}
+
+	// All other sources use the generic media handler (like Instagram)
+	return stats, s.processGenericMedia(ctx, tgCtx, data)
+}
+
+// fetchMedia fetches usable media for linkInfo, retrying transient empty or
+// URL-less results, and reports timing/attempt stats. Shared by the chat and
+// inline handlers, which differ only in how aggressively they may retry within
+// their respective timeouts.
+func (s *handler) fetchMedia(ctx context.Context, linkInfo parser.GetLinkInfoResponse, maxAttempts int, delay time.Duration) (*models.Media, processStats, error) {
+	var stats processStats
 	var data *models.Media
+
 	fetchStart := time.Now()
-	err = retry.New(
+	err := retry.New(
 		retry.WithContext(ctx),
 		retry.WithPolicy(retry.PolicyLinear),
-		retry.WithMaxAttempts(10),
-		retry.WithDelay(2*time.Second),
+		retry.WithMaxAttempts(maxAttempts),
+		retry.WithDelay(delay),
 	).Do(func() error {
 		stats.Attempts++
 
+		var err error
 		data, err = s.parserService.GetMedia(ctx, linkInfo)
 		if err != nil {
 			return err
@@ -299,16 +331,10 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) (processStats,
 	})
 	stats.FetchDuration = time.Since(fetchStart)
 	if err != nil {
-		return stats, fmt.Errorf("failed to get media: %w", err)
+		return nil, stats, fmt.Errorf("failed to get media: %w", err)
 	}
 
-	// YouTube has special handling with quality options
-	if data.Source == models.MediaSourceYoutube {
-		return stats, s.processYoutube(tgCtx, data)
-	}
-
-	// All other sources use the generic media handler (like Instagram)
-	return stats, s.processGenericMedia(ctx, tgCtx, data)
+	return data, stats, nil
 }
 
 func (s *handler) checkLimit(ctx context.Context, chatID int64) error {
@@ -487,8 +513,49 @@ func truncateRunes(text string, maxRunes int) string {
 	return string(runes[:maxRunes-1]) + "…"
 }
 
+// tooLargeText is the message shown when media exceeds Telegram's 50MB bot
+// upload limit, pointing the user to the original download URL. Shared by the
+// chat reply and the inline download-link result so the wording stays in sync.
+func tooLargeText(sourceURL string) string {
+	return fmt.Sprintf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB\ntry to download it from [here](%s)", sourceURL)
+}
+
+// answerInlineError shows the user that the inline request failed instead of
+// returning nothing, which looks like the bot is stuck. The query is answered
+// with a single article describing the error; a short cache time keeps a later
+// retry from being blocked.
+func answerInlineError(c telebot.Context, message string) error {
+	result := &telebot.ArticleResult{
+		Title:       "Error",
+		Description: message,
+	}
+	result.SetContent(&telebot.InputTextMessageContent{
+		Text: fmt.Sprintf("⚠️ %s", message),
+	})
+	result.SetResultID("error")
+
+	return c.Answer(&telebot.QueryResponse{
+		Results:   telebot.Results{result},
+		CacheTime: 5,
+	})
+}
+
+// tooLargeResult builds an inline result that, when picked, sends the download
+// link for a video too large to deliver through Telegram's 50MB inline cap.
+func tooLargeResult(sourceURL string) telebot.Result {
+	result := &telebot.ArticleResult{
+		Title:       "File is larger than 50MB",
+		Description: "Tap to get a download link",
+	}
+	result.SetContent(&telebot.InputTextMessageContent{
+		Text:      tooLargeText(sourceURL),
+		ParseMode: telebot.ModeMarkdown,
+	})
+	return result
+}
+
 func (s *handler) replyTooLarge(tgCtx telebot.Context, sourceURL string) error {
-	text := fmt.Sprintf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB\ntry to download it from [here](%s)", sourceURL)
+	text := tooLargeText(sourceURL)
 	if err := retry.New().Do(func() error {
 		_, err := s.bot.Reply(tgCtx.Message(), text, telebot.ModeMarkdown)
 		return err
