@@ -88,12 +88,57 @@ func parseMediaFromHTML(html, code string) (*models.Media, error) {
 
 	media.Type = string(media.Items[0].Type)
 
-	if c := reCaption.FindStringSubmatch(html); len(c) > 1 {
-		media.Caption = util.JSONUnescape(c[1])
-	}
+	media.Caption = captionForMedia(html, code)
 
 	media.Url = media.Items[0].Url
 	return media, nil
+}
+
+// captionForMedia extracts the requested post's own caption.
+//
+// A post page embeds many *other* posts too — suggested reels and related
+// media — and each carries its own "caption" object. Those decoy captions are
+// rendered on the page *before* the requested post's media, so matching the
+// first "caption" on the whole page returned a stranger's text (e.g. a Самара
+// reel's caption in place of the actual LADA NIVA post). We instead anchor on
+// the `"code":"<shortcode>"` that introduces the requested post's own object —
+// the occurrence closest before its media — and take the first caption after
+// it, which is the post's own.
+func captionForMedia(html, code string) string {
+	anchor := `"code":"` + code + `"`
+
+	start := -1
+	if urlPos := mediaBlockIndex(html); urlPos >= 0 {
+		start = strings.LastIndex(html[:urlPos], anchor)
+	}
+	if start < 0 {
+		start = strings.Index(html, anchor)
+	}
+
+	region := html
+	if start >= 0 {
+		region = html[start:]
+	}
+
+	if c := reCaption.FindStringSubmatch(region); len(c) > 1 {
+		return util.JSONUnescape(c[1])
+	}
+	return ""
+}
+
+// mediaBlockIndex returns the byte offset of the first embedded media (video or
+// image) in the page, or -1 when none is present. It marks where the requested
+// post's media lives so captionForMedia can skip the decoy posts that precede
+// it.
+func mediaBlockIndex(html string) int {
+	idx := -1
+	if loc := reVideoVersion.FindStringIndex(html); loc != nil {
+		idx = loc[0]
+	}
+	if loc := reImageVersion.FindStringIndex(html); loc != nil && (idx < 0 || loc[0] < idx) {
+		idx = loc[0]
+	}
+	return idx
 }
 
 // parseCarousel returns one item per child of a "carousel_media" array, or nil

@@ -66,6 +66,39 @@ func TestParseMediaFromHTML_Dimensions(t *testing.T) {
 	})
 }
 
+// TestParseMediaFromHTML_Caption guards the "stranger's caption" regression. A
+// post page embeds suggested/related posts, each with its own "caption" object,
+// rendered before the requested post's media. The old parser matched the first
+// "caption" on the whole page and so returned a decoy caption; the caption must
+// be anchored to the requested shortcode's own object instead.
+func TestParseMediaFromHTML_Caption(t *testing.T) {
+	const (
+		wantCode = "DbAxzDXtdIo"
+		wantCap  = "the real post caption"
+	)
+
+	// decoy is a suggested reel's object, complete with its own caption, that
+	// Instagram renders before the requested post.
+	const decoy = `{"code":"OTHER1","caption":{"pk":"1","text":"a stranger's caption"},` +
+		`"original_height":1920,"original_width":1080}`
+
+	// main is the requested post: its shortcode, then its caption, then its media.
+	main := `{"code":"` + wantCode + `","taken_at":123,` +
+		`"caption":{"pk":"2","text":"` + wantCap + `"},` +
+		`"original_height":1920,"original_width":1080,` +
+		`"video_versions":[{"type":101,"url":"https:\/\/cdn.example\/reel.mp4"}]}`
+
+	html := `{"items":[` + decoy + `,` + main + `]}`
+
+	media, err := parseMediaFromHTML(html, wantCode)
+	if err != nil {
+		t.Fatalf("parseMediaFromHTML: %v", err)
+	}
+	if media.Caption != wantCap {
+		t.Fatalf("caption = %q, want %q", media.Caption, wantCap)
+	}
+}
+
 func firstItem(t *testing.T, html string) *models.MediaItem {
 	t.Helper()
 	media, err := parseMediaFromHTML(html, "ABC123")
