@@ -3,6 +3,7 @@ package instagram
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,6 +28,23 @@ var (
 	// the vertical video into a square.
 	reDimensions = regexp.MustCompile(`"original_(width|height)":(\d+),"original_(width|height)":(\d+)`)
 	reCaption    = regexp.MustCompile(`"caption":\{(?:[^{}]*?)"text":"((?:[^"\\]|\\.)*)"`)
+
+	// Video length. The mobile "items" payload the post page embeds carries no
+	// "video_duration" key at all — only the DASH manifest does, as an ISO-8601
+	// mediaPresentationDuration (the quotes around it are backslash-escaped
+	// because the manifest is itself a JSON string). Both spellings are matched so
+	// the parser also handles the GraphQL-shaped payload, which does use
+	// "video_duration".
+	reVideoDuration = regexp.MustCompile(`"video_duration":([0-9.]+)`)
+	reDashDuration  = regexp.MustCompile(`mediaPresentationDuration=\\?"PT([0-9.]+)S`)
+
+	// Video cover frame. "additional_candidates".first_frame is the poster frame
+	// of a video item; "candidates" is the generic image ladder (largest first)
+	// used for photos and as a video fallback. Note that image_versions2 spells
+	// additional_candidates *before* candidates on video items, which is why the
+	// keys are matched on their own rather than anchored to image_versions2.
+	reFirstFrame = regexp.MustCompile(`"first_frame":\{"url":"([^"]+)"`)
+	reCandidate  = regexp.MustCompile(`"candidates":\[\{"url":"([^"]+)"`)
 )
 
 const carouselKey = `"carousel_media":[`
@@ -173,6 +191,8 @@ func itemFromBlock(block, code string) *models.MediaItem {
 			Url:       util.JSONUnescape(block[loc[2]:loc[3]]),
 		}
 		item.Width, item.Height = dimensionsForItem(block, loc[0])
+		item.Duration = durationForItem(block, loc[0])
+		item.ThumbnailUrl = thumbnailForItem(block, loc[0])
 		return item
 	}
 
@@ -197,15 +217,66 @@ func itemFromBlock(block, code string) *models.MediaItem {
 // reDimensions, so they never distort the result. Returns (0, 0) when no pair is
 // present, which leaves Telegram to detect the size from the file.
 func dimensionsForItem(block string, urlPos int) (width, height int) {
-	matches := reDimensions.FindAllStringSubmatchIndex(block, -1)
-	if len(matches) == 0 {
+	m := nearestSubmatch(block, reDimensions, urlPos)
+	if m == nil {
 		return 0, 0
+	}
+	return dimsFromMatch(block, m)
+}
+
+// durationForItem returns the length in whole seconds of the video whose URL was
+// matched at urlPos, or 0 when the page carries no duration. Telegram does not
+// probe uploaded files, so a video sent without this shows no length until the
+// client has downloaded it. Instagram reports fractional seconds
+// ("PT119.575592S"), which are rounded rather than truncated.
+func durationForItem(block string, urlPos int) int {
+	// The explicit key wins when present; the DASH manifest is the only carrier
+	// of the duration in the payload the post page actually embeds.
+	for _, re := range []*regexp.Regexp{reVideoDuration, reDashDuration} {
+		m := nearestSubmatch(block, re, urlPos)
+		if m == nil {
+			continue
+		}
+		seconds, err := strconv.ParseFloat(block[m[2]:m[3]], 64)
+		if err != nil || seconds <= 0 {
+			continue
+		}
+		return int(math.Round(seconds))
+	}
+	return 0
+}
+
+// thumbnailForItem returns a JPEG cover URL for the video whose URL was matched
+// at urlPos, or "" when the page carries none. Telegram inline video results
+// require a JPEG thumbnail_url, and the media URL is not an acceptable stand-in.
+func thumbnailForItem(block string, urlPos int) string {
+	// first_frame is the poster frame of the video itself; the candidates ladder
+	// is the generic image fallback.
+	for _, re := range []*regexp.Regexp{reFirstFrame, reCandidate} {
+		m := nearestSubmatch(block, re, urlPos)
+		if m == nil {
+			continue
+		}
+		return util.JSONUnescape(block[m[2]:m[3]])
+	}
+	return ""
+}
+
+// nearestSubmatch returns re's submatch index slice whose match starts closest to
+// pos, or nil when re does not match block at all. Each block — a single post or
+// one carousel child — carries at most one of these keys in practice, so this
+// just guards against a stray occurrence elsewhere in the block (a suggested post
+// embedded on the same page, say).
+func nearestSubmatch(block string, re *regexp.Regexp, pos int) []int {
+	matches := re.FindAllStringSubmatchIndex(block, -1)
+	if len(matches) == 0 {
+		return nil
 	}
 
 	chosen := matches[0]
 	bestDist := -1
 	for _, m := range matches {
-		dist := urlPos - m[0]
+		dist := pos - m[0]
 		if dist < 0 {
 			dist = -dist
 		}
@@ -213,8 +284,7 @@ func dimensionsForItem(block string, urlPos int) (width, height int) {
 			chosen, bestDist = m, dist
 		}
 	}
-
-	return dimsFromMatch(block, chosen)
+	return chosen
 }
 
 // dimsFromMatch reads a width/height pair from a reDimensions submatch, honoring

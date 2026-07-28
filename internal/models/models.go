@@ -27,6 +27,14 @@ type MediaItem struct {
 	MimeType          string    `json:"mime_type"`
 	Width             int       `json:"width"`
 	Height            int       `json:"height"`
+	// Duration is the media length in whole seconds, 0 when unknown. Telegram
+	// never probes an uploaded file, so a video sent without it shows up with no
+	// length in the client until the user downloads the whole thing.
+	Duration int `json:"duration,omitempty"`
+	// ThumbnailUrl is a publicly fetchable JPEG cover frame, empty when unknown.
+	// Telegram inline video results carry a mandatory thumbnail_url that must be
+	// a JPEG — the media URL itself is not a valid value for it.
+	ThumbnailUrl string `json:"thumbnail_url,omitempty"`
 	// DownloadHeaders are extra HTTP headers required to download Url (e.g.
 	// TikTok CDN needs Referer + Cookie). Empty for sources whose URLs are
 	// publicly fetchable. Downloading is handled by internal/media.Loader.

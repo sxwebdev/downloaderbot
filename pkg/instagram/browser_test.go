@@ -20,6 +20,10 @@ func TestBrowserFetcher(t *testing.T) {
 	}{
 		{name: "reel-DZ7PxDJIcz9", link: "https://www.instagram.com/reel/DZ7PxDJIcz9/?igsh=MXNkbmlocmp3Z3JzeQ=="},
 		{name: "reel-DZuZ4SvtrnP", link: "https://www.instagram.com/reel/DZuZ4SvtrnP/?igsh=MXdyaXozd2VnN2k5OQ=="},
+		// The reel that showed the bug: ~2 minutes and 22.4MB, so it fits the 50MB
+		// upload cap the chat path uses but not the 20MB cap Telegram applies when
+		// it fetches an inline result from a URL.
+		{name: "reel-DbTK_BOssyb", link: "https://www.instagram.com/reel/DbTK_BOssyb/?igsh=MWFwdWN4cXV6cGY0aA=="},
 	}
 
 	f := instagram.NewBrowserFetcher()
@@ -76,6 +80,13 @@ func TestBrowserFetcher(t *testing.T) {
 				t.Fatalf("expected portrait reel, got %dx%d", item.Width, item.Height)
 			}
 
+			// Telegram never probes the file it is handed, so a reel sent without a
+			// duration shows no length in the client until the user has downloaded
+			// all of it. The post page carries this only inside the DASH manifest.
+			if item.Duration <= 0 {
+				t.Fatalf("missing duration: %d", item.Duration)
+			}
+
 			client := &http.Client{Timeout: 10 * time.Second}
 			resp, err := client.Head(media.Items[0].Url)
 			if err != nil {
@@ -85,7 +96,27 @@ func TestBrowserFetcher(t *testing.T) {
 			if resp.StatusCode != http.StatusOK {
 				t.Fatalf("HEAD status = %d", resp.StatusCode)
 			}
-			t.Logf("downloadable: %d bytes, %s", resp.ContentLength, resp.Header.Get("Content-Type"))
+			t.Logf("downloadable: %d bytes (%.1fMB), %s, %ds",
+				resp.ContentLength, float64(resp.ContentLength)/1024/1024,
+				resp.Header.Get("Content-Type"), item.Duration)
+
+			// Inline video results carry a mandatory thumbnail_url that Telegram
+			// documents as "JPEG only" — the .mp4 URL is not a valid value for it.
+			if item.ThumbnailUrl == "" {
+				t.Fatal("missing thumbnail url")
+			}
+			thumbResp, err := client.Head(item.ThumbnailUrl)
+			if err != nil {
+				t.Fatalf("thumbnail HEAD: %v", err)
+			}
+			defer thumbResp.Body.Close()
+			if thumbResp.StatusCode != http.StatusOK {
+				t.Fatalf("thumbnail HEAD status = %d", thumbResp.StatusCode)
+			}
+			if ct := thumbResp.Header.Get("Content-Type"); ct != "image/jpeg" {
+				t.Fatalf("thumbnail Content-Type = %q, want image/jpeg", ct)
+			}
+			t.Logf("thumbnail: %d bytes", thumbResp.ContentLength)
 		})
 	}
 }

@@ -26,8 +26,16 @@ import (
 	"gopkg.in/telebot.v3"
 )
 
-// maxFileSize is the Telegram Bot API upload limit for files sent by a bot.
+// maxFileSize is the Telegram Bot API limit for a file the bot uploads itself
+// via multipart/form-data — the chat path, which streams the bytes.
 const maxFileSize = 50 * 1024 * 1024
+
+// maxURLFileSize is the Telegram Bot API limit for content Telegram fetches from
+// a URL on the bot's behalf: "5 MB max size for photos and 20 MB max for other
+// types of content". Inline results can only reference a URL, so this — not the
+// 50MB upload cap — is what bounds them. Offering a larger video inline makes
+// Telegram silently fail to fetch it and the result never appears for the user.
+const maxURLFileSize = 20 * 1024 * 1024
 
 // processStats captures timing/attempt metrics of handling a single link.
 type processStats struct {
@@ -72,6 +80,10 @@ type handler struct {
 	parserService *parser.Service
 	lim           *limiter.Limiter
 
+	// loader resolves media URLs and sizes. Held as an interface rather than
+	// reaching for media.Default() so tests can substitute a fake.
+	loader media.Loader
+
 	bot *telebot.Bot
 }
 
@@ -87,6 +99,7 @@ func newHandler(
 		config:        config,
 		parserService: parserService,
 		lim:           lim,
+		loader:        media.Default(),
 		bot:           bot,
 	}
 }
@@ -213,38 +226,8 @@ func (s *handler) OnQuery(c telebot.Context) error {
 
 	results := make(telebot.Results, 0, len(data.Items))
 	for i, item := range data.Items {
-		// Inline results can only reference a publicly fetchable URL (Telegram
-		// downloads it itself). Items that require download headers (e.g. TikTok)
-		// can't be offered inline — skip them. See README "Known limitations".
-		directURL, ok := media.Default().DirectURL(item)
+		result, ok := s.inlineResultFor(ctx, item, i, description)
 		if !ok {
-			continue
-		}
-
-		var result telebot.Result
-		switch item.Type {
-		case models.MediaTypeVideo:
-			// Telegram can't deliver a video over its 50MB cap as an inline result,
-			// so offer a download link instead — same fallback as the chat handler.
-			if size, err := media.Default().ContentLength(ctx, item); err == nil && size > maxFileSize {
-				result = tooLargeResult(directURL)
-				break
-			}
-			result = &telebot.VideoResult{
-				Title:       fmt.Sprintf("video-%d", i+1),
-				Description: description,
-				MIME:        "video/mp4",
-				URL:         directURL,
-				ThumbURL:    directURL,
-				Width:       item.Width,
-				Height:      item.Height,
-			}
-		case models.MediaTypePhoto:
-			result = &telebot.PhotoResult{
-				URL:      directURL,
-				ThumbURL: directURL, // required for photos
-			}
-		default:
 			continue
 		}
 
@@ -266,6 +249,50 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		Results:   results,
 		CacheTime: 60, // a minute
 	})
+}
+
+// inlineResultFor builds the inline result offered for a single media item.
+// ok is false when the item cannot be offered inline at all, in which case the
+// caller skips it.
+func (s *handler) inlineResultFor(ctx context.Context, item *models.MediaItem, index int, description string) (telebot.Result, bool) {
+	// Inline results can only reference a publicly fetchable URL (Telegram
+	// downloads it itself). Items that require download headers (e.g. TikTok)
+	// can't be offered inline — skip them. See README "Known limitations".
+	directURL, ok := s.loader.DirectURL(item)
+	if !ok {
+		return nil, false
+	}
+
+	switch item.Type {
+	case models.MediaTypeVideo:
+		// Telegram fetches the URL itself and gives up above maxURLFileSize,
+		// leaving a result that silently never sends. Offer a download link
+		// instead — same fallback as the chat handler. An unknown size (the CDN
+		// answered no HEAD) is not treated as too large: offering the video is
+		// still the better guess.
+		if size, err := s.loader.ContentLength(ctx, item); err == nil && size > maxURLFileSize {
+			return tooLargeResult(directURL, maxURLFileSize), true
+		}
+		return &telebot.VideoResult{
+			Title:       fmt.Sprintf("video-%d", index+1),
+			Description: description,
+			MIME:        "video/mp4",
+			URL:         directURL,
+			ThumbURL:    inlineThumbURL(item, directURL),
+			Width:       item.Width,
+			Height:      item.Height,
+			// Without this Telegram shows the result with no length until the
+			// client has downloaded the whole file.
+			Duration: item.Duration,
+		}, true
+	case models.MediaTypePhoto:
+		return &telebot.PhotoResult{
+			URL:      directURL,
+			ThumbURL: directURL, // required for photos
+		}, true
+	default:
+		return nil, false
+	}
 }
 
 // Gets list of links from user message text
@@ -513,11 +540,23 @@ func truncateRunes(text string, maxRunes int) string {
 	return string(runes[:maxRunes-1]) + "…"
 }
 
-// tooLargeText is the message shown when media exceeds Telegram's 50MB bot
-// upload limit, pointing the user to the original download URL. Shared by the
-// chat reply and the inline download-link result so the wording stays in sync.
-func tooLargeText(sourceURL string) string {
-	return fmt.Sprintf("the size of your media file is more than 50MB.\ntelegram allows you to send files via bot up to 50 MB\ntry to download it from [here](%s)", sourceURL)
+// tooLargeText is the message shown when media exceeds the Telegram size limit
+// that applies to the delivery path, pointing the user to the original download
+// URL. Shared by the chat reply and the inline download-link result so the
+// wording stays in sync; the limit differs between them (see maxURLFileSize).
+func tooLargeText(sourceURL string, limit int64) string {
+	mb := limit / 1024 / 1024
+	return fmt.Sprintf("the size of your media file is more than %dMB.\ntelegram allows you to send files via bot up to %d MB\ntry to download it from [here](%s)", mb, mb, sourceURL)
+}
+
+// inlineThumbURL picks the JPEG cover Telegram requires for an inline video
+// result. Telegram documents thumbnail_url as "JPEG only", so the media URL is
+// only a last resort for sources that expose no cover frame.
+func inlineThumbURL(item *models.MediaItem, directURL string) string {
+	if item.ThumbnailUrl != "" {
+		return item.ThumbnailUrl
+	}
+	return directURL
 }
 
 // answerInlineError shows the user that the inline request failed instead of
@@ -541,21 +580,21 @@ func answerInlineError(c telebot.Context, message string) error {
 }
 
 // tooLargeResult builds an inline result that, when picked, sends the download
-// link for a video too large to deliver through Telegram's 50MB inline cap.
-func tooLargeResult(sourceURL string) telebot.Result {
+// link for a video too large for Telegram to fetch from a URL.
+func tooLargeResult(sourceURL string, limit int64) telebot.Result {
 	result := &telebot.ArticleResult{
-		Title:       "File is larger than 50MB",
+		Title:       fmt.Sprintf("File is larger than %dMB", limit/1024/1024),
 		Description: "Tap to get a download link",
 	}
 	result.SetContent(&telebot.InputTextMessageContent{
-		Text:      tooLargeText(sourceURL),
+		Text:      tooLargeText(sourceURL, limit),
 		ParseMode: telebot.ModeMarkdown,
 	})
 	return result
 }
 
 func (s *handler) replyTooLarge(tgCtx telebot.Context, sourceURL string) error {
-	text := tooLargeText(sourceURL)
+	text := tooLargeText(sourceURL, maxFileSize)
 	if err := retry.New().Do(func() error {
 		_, err := s.bot.Reply(tgCtx.Message(), text, telebot.ModeMarkdown)
 		return err
@@ -568,6 +607,24 @@ func (s *handler) replyTooLarge(tgCtx telebot.Context, sourceURL string) error {
 	return nil
 }
 
+// videoFromItem builds the video upload for a media item, shared by the single
+// video and the album paths so both describe the file the same way.
+//
+// Telegram never probes a file a bot uploads: whatever it is not told stays
+// unknown to the clients. Without Duration the video renders with no length
+// until the user has downloaded the whole thing, and without Streaming it cannot
+// start playing before that either.
+func videoFromItem(item *models.MediaItem, body io.Reader) *telebot.Video {
+	return &telebot.Video{
+		File:      telebot.FromReader(body),
+		Width:     item.Width,
+		Height:    item.Height,
+		MIME:      item.MimeType,
+		Duration:  item.Duration,
+		Streaming: true,
+	}
+}
+
 func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, data *models.Media) error {
 	if len(data.Items) == 1 {
 		mediaItem := data.Items[0]
@@ -576,7 +633,7 @@ func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, d
 			return s.replyTooLarge(tgCtx, mediaItem.Url)
 		}
 
-		content, err := media.Default().Open(ctx, mediaItem)
+		content, err := s.loader.Open(ctx, mediaItem)
 		if err != nil {
 			return err
 		}
@@ -595,12 +652,7 @@ func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, d
 		// handle video
 		if mediaItem.Type.IsVideo() {
 			if err := retry.New().Do(func() error {
-				_, err = s.bot.Send(tgCtx.Message().Chat, &telebot.Video{
-					File:   telebot.FromReader(body),
-					Width:  mediaItem.Width,
-					Height: mediaItem.Height,
-					MIME:   mediaItem.MimeType,
-				})
+				_, err = s.bot.Send(tgCtx.Message().Chat, videoFromItem(mediaItem, body))
 				return err
 			}); err != nil {
 				metrics.TelegramSendErrors.WithLabelValues("video").Inc()
@@ -627,7 +679,7 @@ func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, d
 	}
 
 	for chunk := range slices.Chunk(data.Items, 10) {
-		album, err := generateAlbumFromMedia(ctx, chunk)
+		album, err := generateAlbumFromMedia(ctx, s.loader, chunk)
 		if err != nil {
 			return fmt.Errorf("couldn't generate the album: %w", err)
 		}
@@ -644,7 +696,7 @@ func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, d
 	return nil
 }
 
-func generateAlbumFromMedia(ctx context.Context, items []*models.MediaItem) (telebot.Album, error) {
+func generateAlbumFromMedia(ctx context.Context, loader media.Loader, items []*models.MediaItem) (telebot.Album, error) {
 	album := util.NewSliceWithLength[telebot.Inputtable](len(items))
 
 	eg := errgroup.Group{}
@@ -652,7 +704,7 @@ func generateAlbumFromMedia(ctx context.Context, items []*models.MediaItem) (tel
 
 	for idx, item := range items {
 		eg.Go(func() error {
-			content, err := media.Default().Open(ctx, item)
+			content, err := loader.Open(ctx, item)
 			if err != nil {
 				return err
 			}
@@ -670,12 +722,7 @@ func generateAlbumFromMedia(ctx context.Context, items []*models.MediaItem) (tel
 			buf := bytes.NewReader(data)
 
 			if item.Type.IsVideo() {
-				album.AddToIndex(idx, &telebot.Video{
-					File:   telebot.FromReader(buf),
-					Width:  item.Width,
-					Height: item.Height,
-					MIME:   item.MimeType,
-				})
+				album.AddToIndex(idx, videoFromItem(item, buf))
 			} else {
 				album.AddToIndex(idx, &telebot.Photo{
 					File:   telebot.FromReader(buf),

@@ -18,10 +18,8 @@ test-cover:
 vuln:
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
-watch:
-	air -c .air.toml
-
 fmt:
+	go fix ./...
 	gofumpt -l -w .
 
 grpcui:

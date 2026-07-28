@@ -14,6 +14,13 @@ DOWNLOADERBOT_TELEGRAM_BOT_API_TOKEN= # your telegram bot api token
 
 ## Known limitations
 
+- **Inline results are capped at 20MB, not 50MB.** An inline result can only
+  reference a URL, and Telegram downloads it itself — which the Bot API limits to
+  "5 MB max size for photos and 20 MB max for other types of content". That is
+  much stricter than the 50MB a bot may upload directly, so a video between 20MB
+  and 50MB is delivered normally in a direct message but cannot be sent inline;
+  the bot offers a download link for it instead. Instagram reels run past 20MB
+  routinely — a two-minute 1080x1920 reel is around 22MB.
 - **TikTok is not available in inline mode.** TikTok CDN URLs only serve the
   video when the request carries the browser's cookies + a `tiktok.com` referer,
   so the bot has to download the bytes itself (which it does in direct messages).

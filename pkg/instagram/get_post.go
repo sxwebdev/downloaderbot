@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -313,15 +314,23 @@ func doGQLRequest(ctx context.Context, sess *igSession, code string) (*models.Me
 		return nil, fmt.Errorf("response is not video")
 	}
 
+	// Instagram reports a fractional duration; Telegram takes whole seconds.
+	thumbnail := data.ThumbnailSrc
+	if thumbnail == "" {
+		thumbnail = data.DisplayURL
+	}
+
 	resp := &models.Media{
 		Title: data.Title,
 		Items: []*models.MediaItem{
 			{
-				Shortcode: data.Shortcode,
-				Type:      models.MediaTypeVideo,
-				Url:       data.VideoURL,
-				Width:     data.Dimensions.Width,
-				Height:    data.Dimensions.Height,
+				Shortcode:    data.Shortcode,
+				Type:         models.MediaTypeVideo,
+				Url:          data.VideoURL,
+				Width:        data.Dimensions.Width,
+				Height:       data.Dimensions.Height,
+				Duration:     int(math.Round(data.VideoDuration)),
+				ThumbnailUrl: thumbnail,
 			},
 		},
 	}
