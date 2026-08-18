@@ -213,6 +213,8 @@ func (s *handler) OnQuery(c telebot.Context) error {
 		return answerInlineError(c, "YouTube is not supported in inline mode")
 	}
 
+	observeActiveUser(c)
+
 	// Keep attempts low to stay within Telegram's inline query timeout.
 	data, stats, err := s.fetchMedia(ctx, linkInfo, 3, time.Second)
 	if err != nil {
@@ -308,6 +310,8 @@ func (s *handler) processLink(tgCtx telebot.Context, link string) (processStats,
 		return stats, fmt.Errorf("get link info error: %w", err)
 	}
 
+	observeActiveUser(tgCtx)
+
 	data, stats, err := s.fetchMedia(ctx, linkInfo, 3, 2*time.Second)
 	if err != nil {
 		return stats, err
@@ -357,6 +361,7 @@ func (s *handler) fetchMedia(ctx context.Context, linkInfo parser.GetLinkInfoRes
 		return nil
 	})
 	stats.FetchDuration = time.Since(fetchStart)
+	metrics.ObserveExtractionRequest(string(linkInfo.MediaSource), err)
 	if err != nil {
 		return nil, stats, fmt.Errorf("failed to get media: %w", err)
 	}
@@ -375,6 +380,14 @@ func replyError(c telebot.Context, text string) error {
 	}
 
 	return nil
+}
+
+func observeActiveUser(c telebot.Context) {
+	sender := c.Sender()
+	if sender == nil || sender.IsBot {
+		return
+	}
+	metrics.ObserveActiveUser(sender.ID)
 }
 
 // replyText - send text message to user
@@ -626,24 +639,30 @@ func videoFromItem(item *models.MediaItem, body io.Reader) *telebot.Video {
 }
 
 func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, data *models.Media) error {
+	source := string(data.Source)
 	if len(data.Items) == 1 {
 		mediaItem := data.Items[0]
 
 		if mediaItem.ContentLength > maxFileSize {
+			metrics.ObserveDownloadFailure(source, metrics.ReasonSizeLimit)
 			return s.replyTooLarge(tgCtx, mediaItem.Url)
 		}
 
 		content, err := s.loader.Open(ctx, mediaItem)
 		if err != nil {
+			metrics.ObserveDownloadFailure(source, metrics.ReasonOpen)
 			return err
 		}
-		body := content.Body
-		defer body.Close()
 
 		// Open reports the real size from the response header — recheck before streaming
 		if content.ContentLength > maxFileSize {
+			_ = content.Body.Close()
+			metrics.ObserveDownloadFailure(source, metrics.ReasonSizeLimit)
 			return s.replyTooLarge(tgCtx, mediaItem.Url)
 		}
+
+		body := metrics.TrackDownload(source, content.Body)
+		defer body.Close()
 
 		if content.ContentLength > 0 {
 			metrics.MediaSizeBytes.Observe(float64(content.ContentLength))
@@ -651,27 +670,29 @@ func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, d
 
 		// handle video
 		if mediaItem.Type.IsVideo() {
-			if err := retry.New().Do(func() error {
-				_, err = s.bot.Send(tgCtx.Message().Chat, videoFromItem(mediaItem, body))
+			sendErr := retry.New().Do(func() error {
+				_, err := s.bot.Send(tgCtx.Message().Chat, videoFromItem(mediaItem, body))
 				return err
-			}); err != nil {
-				metrics.TelegramSendErrors.WithLabelValues("video").Inc()
-				return fmt.Errorf("couldn't send the single video: %w", err)
+			})
+			metrics.ObserveTelegramDelivery(source, "video", sendErr)
+			if sendErr != nil {
+				return fmt.Errorf("couldn't send the single video: %w", sendErr)
 			}
 		}
 
 		// handle photo
 		if mediaItem.Type.IsPhoto() {
-			if err := retry.New().Do(func() error {
+			sendErr := retry.New().Do(func() error {
 				_, err := s.bot.Send(tgCtx.Message().Chat, &telebot.Photo{
 					File:   telebot.FromReader(body),
 					Width:  mediaItem.Width,
 					Height: mediaItem.Height,
 				})
 				return err
-			}); err != nil {
-				metrics.TelegramSendErrors.WithLabelValues("photo").Inc()
-				return fmt.Errorf("couldn't send the single photo: %w", err)
+			})
+			metrics.ObserveTelegramDelivery(source, "photo", sendErr)
+			if sendErr != nil {
+				return fmt.Errorf("couldn't send the single photo: %w", sendErr)
 			}
 		}
 
@@ -679,24 +700,25 @@ func (s *handler) sendMediaContent(ctx context.Context, tgCtx telebot.Context, d
 	}
 
 	for chunk := range slices.Chunk(data.Items, 10) {
-		album, err := generateAlbumFromMedia(ctx, s.loader, chunk)
+		album, err := generateAlbumFromMedia(ctx, s.loader, source, chunk)
 		if err != nil {
 			return fmt.Errorf("couldn't generate the album: %w", err)
 		}
 
-		if err := retry.New().Do(func() error {
+		sendErr := retry.New().Do(func() error {
 			_, err := s.bot.SendAlbum(tgCtx.Message().Chat, album)
 			return err
-		}); err != nil {
-			metrics.TelegramSendErrors.WithLabelValues("album").Inc()
-			return fmt.Errorf("couldn't send the album: %w", err)
+		})
+		metrics.ObserveTelegramDelivery(source, "album", sendErr)
+		if sendErr != nil {
+			return fmt.Errorf("couldn't send the album: %w", sendErr)
 		}
 	}
 
 	return nil
 }
 
-func generateAlbumFromMedia(ctx context.Context, loader media.Loader, items []*models.MediaItem) (telebot.Album, error) {
+func generateAlbumFromMedia(ctx context.Context, loader media.Loader, source string, items []*models.MediaItem) (telebot.Album, error) {
 	album := util.NewSliceWithLength[telebot.Inputtable](len(items))
 
 	eg := errgroup.Group{}
@@ -706,16 +728,20 @@ func generateAlbumFromMedia(ctx context.Context, loader media.Loader, items []*m
 		eg.Go(func() error {
 			content, err := loader.Open(ctx, item)
 			if err != nil {
+				metrics.ObserveDownloadFailure(source, metrics.ReasonOpen)
 				return err
 			}
-			defer content.Body.Close()
 
 			// Guard before buffering the whole item into memory.
 			if content.ContentLength > maxFileSize {
+				_ = content.Body.Close()
+				metrics.ObserveDownloadFailure(source, metrics.ReasonSizeLimit)
 				return fmt.Errorf("media item exceeds %d bytes", int64(maxFileSize))
 			}
 
-			data, err := io.ReadAll(content.Body)
+			body := metrics.TrackDownload(source, content.Body)
+			defer body.Close()
+			data, err := io.ReadAll(body)
 			if err != nil {
 				return err
 			}

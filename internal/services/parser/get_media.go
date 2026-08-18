@@ -2,7 +2,6 @@ package parser
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -62,22 +61,10 @@ func (s *Service) GetMedia(ctx context.Context, linkInfo GetLinkInfoResponse) (*
 	source := string(linkInfo.MediaSource)
 	start := time.Now()
 	media, err := linkInfo.Extractor.Extract(ctx, linkInfo.RequestLink)
-	metrics.ExtractDuration.WithLabelValues(source).Observe(time.Since(start).Seconds())
+	metrics.ObserveExtractionAttempt(source, start, err)
 	if err != nil {
-		metrics.ExtractErrors.WithLabelValues(source, classifyExtractError(err)).Inc()
 		return nil, fmt.Errorf("failed to get media from source: %w", err)
 	}
 
 	return media, nil
-}
-
-func classifyExtractError(err error) string {
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return "timeout"
-	case errors.Is(err, context.Canceled):
-		return "canceled"
-	default:
-		return "other"
-	}
 }

@@ -19,6 +19,8 @@ import (
 type fakeLoader struct {
 	size    int64
 	sizeErr error
+	payload string
+	openErr error
 	// headCalls counts ContentLength lookups so tests can assert the size is
 	// probed only for the item types that need it.
 	headCalls atomic.Int64
@@ -32,7 +34,10 @@ func (f *fakeLoader) DirectURL(item *models.MediaItem) (string, bool) {
 }
 
 func (f *fakeLoader) Open(context.Context, *models.MediaItem) (*media.Content, error) {
-	return &media.Content{Body: io.NopCloser(strings.NewReader("")), ContentLength: f.size}, nil
+	if f.openErr != nil {
+		return nil, f.openErr
+	}
+	return &media.Content{Body: io.NopCloser(strings.NewReader(f.payload)), ContentLength: f.size}, nil
 }
 
 func (f *fakeLoader) ContentLength(context.Context, *models.MediaItem) (int64, error) {

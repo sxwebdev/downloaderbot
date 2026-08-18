@@ -1,9 +1,12 @@
 package telegram
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	appmetrics "github.com/sxwebdev/downloaderbot/internal/metrics"
 	"github.com/sxwebdev/downloaderbot/internal/models"
 )
 
@@ -83,5 +86,63 @@ func TestVideoFromItem_MatchesAcrossPaths(t *testing.T) {
 		single.Height != album.Height ||
 		single.MIME != album.MIME {
 		t.Fatalf("paths disagree: single=%+v album=%+v", single, album)
+	}
+}
+
+func TestGenerateAlbumTracksCompletedDownloads(t *testing.T) {
+	const (
+		source  = "test_album_complete"
+		payload = "album media payload"
+	)
+	items := []*models.MediaItem{
+		{Type: models.MediaTypePhoto, Url: "https://cdn.example/1.jpg"},
+		{Type: models.MediaTypeVideo, Url: "https://cdn.example/2.mp4"},
+	}
+	loader := &fakeLoader{size: int64(len(payload)), payload: payload}
+	bytesBefore := testutil.ToFloat64(appmetrics.MediaDownloadBytes.WithLabelValues(source))
+	completedBefore := testutil.ToFloat64(appmetrics.MediaDownloadCompletedBytes.WithLabelValues(source))
+	successBefore := testutil.ToFloat64(appmetrics.MediaDownloads.WithLabelValues(
+		source, appmetrics.OutcomeSuccess, appmetrics.ReasonNone,
+	))
+
+	album, err := generateAlbumFromMedia(t.Context(), loader, source, items)
+	if err != nil {
+		t.Fatalf("generateAlbumFromMedia: %v", err)
+	}
+	if len(album) != len(items) {
+		t.Fatalf("album length = %d, want %d", len(album), len(items))
+	}
+
+	if got := testutil.ToFloat64(appmetrics.MediaDownloadBytes.WithLabelValues(source)) - bytesBefore; got != float64(2*len(payload)) {
+		t.Errorf("downloaded bytes delta = %v, want %d", got, 2*len(payload))
+	}
+	if got := testutil.ToFloat64(appmetrics.MediaDownloadCompletedBytes.WithLabelValues(source)) - completedBefore; got != float64(2*len(payload)) {
+		t.Errorf("completed bytes delta = %v, want %d", got, 2*len(payload))
+	}
+	if got := testutil.ToFloat64(appmetrics.MediaDownloads.WithLabelValues(
+		source, appmetrics.OutcomeSuccess, appmetrics.ReasonNone,
+	)) - successBefore; got != float64(len(items)) {
+		t.Errorf("successful downloads delta = %v, want %d", got, len(items))
+	}
+}
+
+func TestGenerateAlbumTracksOpenFailure(t *testing.T) {
+	const source = "test_album_open_failure"
+	openErr := errors.New("upstream unavailable")
+	failureBefore := testutil.ToFloat64(appmetrics.MediaDownloads.WithLabelValues(
+		source, appmetrics.OutcomeFailure, appmetrics.ReasonOpen,
+	))
+
+	_, err := generateAlbumFromMedia(t.Context(), &fakeLoader{openErr: openErr}, source, []*models.MediaItem{{
+		Type: models.MediaTypePhoto,
+		Url:  "https://cdn.example/1.jpg",
+	}})
+	if !errors.Is(err, openErr) {
+		t.Fatalf("generateAlbumFromMedia error = %v, want %v", err, openErr)
+	}
+	if got := testutil.ToFloat64(appmetrics.MediaDownloads.WithLabelValues(
+		source, appmetrics.OutcomeFailure, appmetrics.ReasonOpen,
+	)) - failureBefore; got != 1 {
+		t.Errorf("failed downloads delta = %v, want 1", got)
 	}
 }
