@@ -6,51 +6,97 @@ import (
 	"strings"
 
 	"github.com/iawia002/lux/extractors"
+	"github.com/iawia002/lux/extractors/acfun"
+	"github.com/iawia002/lux/extractors/bcy"
+	"github.com/iawia002/lux/extractors/bilibili"
+	"github.com/iawia002/lux/extractors/douyin"
+	"github.com/iawia002/lux/extractors/douyu"
+	"github.com/iawia002/lux/extractors/eporner"
+	"github.com/iawia002/lux/extractors/facebook"
+	"github.com/iawia002/lux/extractors/geekbang"
+	"github.com/iawia002/lux/extractors/haokan"
+	"github.com/iawia002/lux/extractors/hupu"
+	"github.com/iawia002/lux/extractors/huya"
+	"github.com/iawia002/lux/extractors/iqiyi"
+	"github.com/iawia002/lux/extractors/ixigua"
+	"github.com/iawia002/lux/extractors/kuaishou"
+	"github.com/iawia002/lux/extractors/mgtv"
+	"github.com/iawia002/lux/extractors/miaopai"
+	"github.com/iawia002/lux/extractors/netease"
+	"github.com/iawia002/lux/extractors/pinterest"
+	"github.com/iawia002/lux/extractors/pixivision"
+	"github.com/iawia002/lux/extractors/pornhub"
+	"github.com/iawia002/lux/extractors/qq"
+	"github.com/iawia002/lux/extractors/reddit"
+	"github.com/iawia002/lux/extractors/rumble"
+	"github.com/iawia002/lux/extractors/streamtape"
+	"github.com/iawia002/lux/extractors/tangdou"
+	"github.com/iawia002/lux/extractors/tiktok"
+	"github.com/iawia002/lux/extractors/tumblr"
+	"github.com/iawia002/lux/extractors/twitter"
+	"github.com/iawia002/lux/extractors/udn"
+	"github.com/iawia002/lux/extractors/vimeo"
+	"github.com/iawia002/lux/extractors/vk"
+	"github.com/iawia002/lux/extractors/weibo"
+	"github.com/iawia002/lux/extractors/xiaohongshu"
+	"github.com/iawia002/lux/extractors/ximalaya"
+	"github.com/iawia002/lux/extractors/xinpianchang"
+	"github.com/iawia002/lux/extractors/xvideos"
+	"github.com/iawia002/lux/extractors/yinyuetai"
+	"github.com/iawia002/lux/extractors/youku"
+	"github.com/iawia002/lux/extractors/zhihu"
+	"github.com/iawia002/lux/extractors/zingmp3"
 	"github.com/sxwebdev/downloaderbot/internal/models"
-
-	// Import all available lux extractors to register them
-	// Note: Some extractors from lux master branch are not available in v0.24.1
-	_ "github.com/iawia002/lux/extractors/acfun"
-	_ "github.com/iawia002/lux/extractors/bcy"
-	_ "github.com/iawia002/lux/extractors/bilibili"
-	_ "github.com/iawia002/lux/extractors/douyin"
-	_ "github.com/iawia002/lux/extractors/douyu"
-	_ "github.com/iawia002/lux/extractors/eporner"
-	_ "github.com/iawia002/lux/extractors/facebook"
-	_ "github.com/iawia002/lux/extractors/geekbang"
-	_ "github.com/iawia002/lux/extractors/haokan"
-	_ "github.com/iawia002/lux/extractors/hupu"
-	_ "github.com/iawia002/lux/extractors/huya"
-	_ "github.com/iawia002/lux/extractors/iqiyi"
-	_ "github.com/iawia002/lux/extractors/ixigua"
-	_ "github.com/iawia002/lux/extractors/kuaishou"
-	_ "github.com/iawia002/lux/extractors/mgtv"
-	_ "github.com/iawia002/lux/extractors/miaopai"
-	_ "github.com/iawia002/lux/extractors/netease"
-	_ "github.com/iawia002/lux/extractors/pinterest"
-	_ "github.com/iawia002/lux/extractors/pixivision"
-	_ "github.com/iawia002/lux/extractors/pornhub"
-	_ "github.com/iawia002/lux/extractors/qq"
-	_ "github.com/iawia002/lux/extractors/reddit"
-	_ "github.com/iawia002/lux/extractors/rumble"
-	_ "github.com/iawia002/lux/extractors/streamtape"
-	_ "github.com/iawia002/lux/extractors/tangdou"
-	_ "github.com/iawia002/lux/extractors/tiktok"
-	_ "github.com/iawia002/lux/extractors/tumblr"
-	_ "github.com/iawia002/lux/extractors/twitter"
-	_ "github.com/iawia002/lux/extractors/udn"
-	_ "github.com/iawia002/lux/extractors/vimeo"
-	_ "github.com/iawia002/lux/extractors/vk"
-	_ "github.com/iawia002/lux/extractors/weibo"
-	_ "github.com/iawia002/lux/extractors/xiaohongshu"
-	_ "github.com/iawia002/lux/extractors/ximalaya"
-	_ "github.com/iawia002/lux/extractors/xinpianchang"
-	_ "github.com/iawia002/lux/extractors/xvideos"
-	_ "github.com/iawia002/lux/extractors/yinyuetai"
-	_ "github.com/iawia002/lux/extractors/youku"
-	_ "github.com/iawia002/lux/extractors/zhihu"
-	_ "github.com/iawia002/lux/extractors/zingmp3"
 )
+
+// siteExtractors builds the lux extractor for each site name. Extract calls it
+// directly instead of going through extractors.Extract: lux picks its extractor
+// from the URL host's second-level label, so short-link hosts our registry maps
+// to a site — pin.it, x.com, fb.watch, redd.it, vkvideo.ru — resolve to keys
+// lux never registered ("pin", "x", ...). lux then falls back to its universal
+// extractor, which is not linked in, and calls a method on a nil interface.
+var siteExtractors = map[string]func() extractors.Extractor{
+	"acfun":        acfun.New,
+	"bcy":          bcy.New,
+	"bilibili":     bilibili.New,
+	"douyin":       douyin.New,
+	"douyu":        douyu.New,
+	"eporner":      eporner.New,
+	"facebook":     facebook.New,
+	"geekbang":     geekbang.New,
+	"haokan":       haokan.New,
+	"hupu":         hupu.New,
+	"huya":         huya.New,
+	"iqiyi":        func() extractors.Extractor { return iqiyi.New(iqiyi.SiteTypeIqiyi) },
+	"ixigua":       ixigua.New,
+	"kuaishou":     kuaishou.New,
+	"mgtv":         mgtv.New,
+	"miaopai":      miaopai.New,
+	"netease":      netease.New,
+	"pinterest":    pinterest.New,
+	"pixivision":   pixivision.New,
+	"pornhub":      pornhub.New,
+	"qq":           qq.New,
+	"reddit":       reddit.New,
+	"rumble":       rumble.New,
+	"streamtape":   streamtape.New,
+	"tangdou":      tangdou.New,
+	"tiktok":       tiktok.New,
+	"tumblr":       tumblr.New,
+	"twitter":      twitter.New,
+	"udn":          udn.New,
+	"vimeo":        vimeo.New,
+	"vk":           vk.New,
+	"weibo":        weibo.New,
+	"xiaohongshu":  xiaohongshu.New,
+	"ximalaya":     ximalaya.New,
+	"xinpianchang": xinpianchang.New,
+	"xvideos":      xvideos.New,
+	"yinyuetai":    yinyuetai.New,
+	"youku":        youku.New,
+	"zhihu":        zhihu.New,
+	"zingmp3":      zingmp3.New,
+}
 
 // siteToSource maps lux site names to MediaSource
 var siteToSource = map[string]models.MediaSource{
@@ -199,14 +245,19 @@ var hostToSite = map[string]string{
 type Extractor struct {
 	name  string
 	hosts []string
+	lux   extractors.Extractor // nil when lux has no extractor for the site
 }
 
 // NewExtractor creates a new lux-based extractor for a specific site
 func NewExtractor(siteName string, hosts []string) *Extractor {
-	return &Extractor{
+	e := &Extractor{
 		name:  siteName,
 		hosts: hosts,
 	}
+	if newLux, ok := siteExtractors[siteName]; ok {
+		e.lux = newLux()
+	}
+	return e
 }
 
 // Name returns the extractor name
@@ -221,14 +272,12 @@ func (e *Extractor) Hosts() []string {
 
 // Extract extracts media from the URL using lux
 func (e *Extractor) Extract(ctx context.Context, url string) (*models.Media, error) {
-	opts := extractors.Options{}
-
-	dataList, err := extractors.Extract(url, opts)
+	dataList, err := e.extractLux(strings.TrimSpace(url))
 	if err != nil {
 		return nil, fmt.Errorf("lux extraction failed: %w", err)
 	}
 
-	if len(dataList) == 0 {
+	if len(dataList) == 0 || dataList[0] == nil {
 		return nil, fmt.Errorf("no data extracted from URL")
 	}
 
@@ -240,6 +289,9 @@ func (e *Extractor) Extract(ctx context.Context, url string) (*models.Media, err
 
 	// Convert lux data to our Media model
 	media := convertLuxDataToMedia(data, url)
+	if len(media.Items) == 0 {
+		return nil, fmt.Errorf("no downloadable media: %s only offers segmented streams that need merging", e.name)
+	}
 
 	// Set the source based on the extractor name
 	if source, ok := siteToSource[e.name]; ok {
@@ -251,6 +303,21 @@ func (e *Extractor) Extract(ctx context.Context, url string) (*models.Media, err
 	return media, nil
 }
 
+// extractLux runs the site's lux extractor. lux scrapes arbitrary third-party
+// pages and indexes into what it finds, so a panic in it is turned into an
+// error for this one link rather than left to the Telegram handler.
+func (e *Extractor) extractLux(url string) (data []*extractors.Data, err error) {
+	if e.lux == nil {
+		return nil, fmt.Errorf("no lux extractor for site %q", e.name)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			data, err = nil, fmt.Errorf("lux %s extractor panicked: %v", e.name, r)
+		}
+	}()
+	return e.lux.Extract(url, extractors.Options{})
+}
+
 // convertLuxDataToMedia converts lux Data to our Media model
 func convertLuxDataToMedia(data *extractors.Data, requestURL string) *models.Media {
 	media := &models.Media{
@@ -259,46 +326,41 @@ func convertLuxDataToMedia(data *extractors.Data, requestURL string) *models.Med
 		Items:      make([]*models.MediaItem, 0),
 	}
 
-	// Iterate over streams to get quality options
+	// Determine media type based on lux data type
+	mediaType := models.MediaTypeVideo
+	switch data.Type {
+	case extractors.DataTypeAudio:
+		mediaType = models.MediaTypeAudio
+	case extractors.DataTypeImage:
+		mediaType = models.MediaTypePhoto
+	}
+
+	// One item per quality. Only single-part streams are usable: lux splits
+	// HLS playlists (Twitter/X) into their segments and DASH (Bilibili) into
+	// separate video and audio tracks, which lux itself merges with ffmpeg.
+	// Sent as-is they would reach the user as an album of 2-second fragments.
 	for streamID, stream := range data.Streams {
-		if stream == nil || len(stream.Parts) == 0 {
+		if stream == nil || len(stream.Parts) != 1 {
+			continue
+		}
+		part := stream.Parts[0]
+		if part == nil || part.URL == "" {
 			continue
 		}
 
-		// Determine media type based on lux data type
-		mediaType := models.MediaTypeVideo
-		switch data.Type {
-		case extractors.DataTypeAudio:
-			mediaType = models.MediaTypeAudio
-		case extractors.DataTypeImage:
-			mediaType = models.MediaTypePhoto
+		quality := stream.Quality
+		if quality == "" {
+			quality = streamID
 		}
 
-		// For each part in the stream, create a media item
-		for partIdx, part := range stream.Parts {
-			if part == nil || part.URL == "" {
-				continue
-			}
-
-			quality := stream.Quality
-			if quality == "" {
-				quality = streamID
-			}
-			if len(stream.Parts) > 1 {
-				quality = fmt.Sprintf("%s-part%d", quality, partIdx+1)
-			}
-
-			item := &models.MediaItem{
-				Id:            fmt.Sprintf("%s-%d", streamID, partIdx),
-				Type:          mediaType,
-				Url:           part.URL,
-				Quality:       quality,
-				ContentLength: part.Size,
-				MimeType:      getMimeType(part.Ext, mediaType),
-			}
-
-			media.Items = append(media.Items, item)
-		}
+		media.Items = append(media.Items, &models.MediaItem{
+			Id:            streamID + "-0",
+			Type:          mediaType,
+			Url:           part.URL,
+			Quality:       quality,
+			ContentLength: part.Size,
+			MimeType:      getMimeType(part.Ext, mediaType),
+		})
 	}
 
 	// If no items from streams, try to get any available data

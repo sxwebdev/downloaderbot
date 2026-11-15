@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -110,7 +111,7 @@ func (s *handler) recover(name string, fn telebot.HandlerFunc) telebot.HandlerFu
 	return func(tgCtx telebot.Context) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				s.logger.Errorf("panic in handler %s: %v", name, r)
+				s.logger.Errorw(fmt.Sprintf("panic in handler %s: %v", name, r), "stack", string(debug.Stack()))
 				err = fmt.Errorf("handler %s panicked: %v", name, r)
 			}
 		}()
