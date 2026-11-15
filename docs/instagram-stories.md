@@ -32,7 +32,7 @@ natural addition.
 
 | Approach                                           | Engineering cost | Realistic uptime without manual intervention |
 | -------------------------------------------------- | ---------------- | -------------------------------------------- |
-| Manual cookie import + file hot-reload + 401 alert | Low              | 1–3 months between manual refreshes          |
+| Manual cookie import + file hot-reload + 401 alert | Low              | 1=3 months between manual refreshes          |
 | Username/password auto-login + cookie fallback     | Medium           | Days to weeks (challenges break the loop)    |
 | Mobile-API login + persist device fingerprint      | High             | Weeks to months, periodic challenges remain  |
 | Headless browser (chromedp / playwright)           | High             | No better than mobile-API; harder to ship    |
@@ -63,7 +63,7 @@ Two paths are worth considering if the priorities change:
    between restarts, re-logs on 401, and posts an alert to the bot owner's
    Telegram chat when it hits a challenge that needs human action. This needs
    a dedicated "technical" Instagram account without 2FA and accepts that the
-   operator will resolve a challenge every 1–3 months at best.
+   operator will resolve a challenge every 1=3 months at best.
 
 Either path should be re-scoped as its own task, not bolted onto an existing
 PR.
