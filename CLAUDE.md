@@ -91,7 +91,10 @@ Registration panics on duplicate name or host, so a collision fails at startup, 
 ### Headless browser (`pkg/browser`)
 
 One lazily-launched, process-wide `Manager` (`browser.Default()`), pre-warmed in a goroutine at
-startup and closed on shutdown. `Load` opens a page, **blocks image/media/font/stylesheet
+startup and closed on shutdown. Each Chromium serves `maxLoadsPerBrowser` loads, then is retired
+(process killed, profile dir deleted) and replaced in the background — a long-lived Chromium only
+grows. Tabs are closed through a browser-scoped context, never the request one: a close bound to a
+cancelled request context is silently not sent and the tab lives forever. `Load` opens a page, **blocks image/media/font/stylesheet
 requests** (the extractors only need the server-rendered JSON) and snapshots the HTML.
 
 The latency-critical part is `WithReady(pred)`: instead of waiting for the load event plus a

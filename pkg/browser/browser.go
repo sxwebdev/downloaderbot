@@ -72,15 +72,49 @@ func (r *Result) CookieHeader() string {
 	return string(b)
 }
 
-// Manager owns a lazily-launched, reused browser instance.
+// maxLoadsPerBrowser is how many page loads one Chromium process serves before
+// it is retired and replaced. A long-lived Chromium only grows: its browser
+// process, renderer processes and on-disk profile (HTTP + code cache — page
+// cache that counts against the container's memory limit) all accumulate. In
+// production a 45-day-old instance held ~1.1GB, with a 2GB profile directory.
+// Relaunching costs well under a second and wipes all of it.
+const maxLoadsPerBrowser = 100
+
+// closeTimeout bounds tab/browser teardown calls, which run on a context that
+// is independent of the (possibly already cancelled) request context.
+const closeTimeout = 5 * time.Second
+
+// instance is one launched Chromium process.
+type instance struct {
+	browser  *rod.Browser
+	launcher *launcher.Launcher
+	loads    int // page loads started on this instance
+	active   int // page loads currently running on this instance
+}
+
+// shutdown closes the browser, kills the process tree and removes the profile
+// directory. It may block for a second or more (rod's Kill waits for child
+// processes to settle).
+func (in *instance) shutdown() error {
+	err := in.browser.Timeout(closeTimeout).Close()
+	if in.launcher != nil {
+		in.launcher.Kill()
+		in.launcher.Cleanup()
+	}
+	return err
+}
+
+// Manager owns a lazily-launched, reused browser instance, replaced after
+// maxLoadsPerBrowser loads.
 type Manager struct {
 	binPath  string
 	headless bool
+	maxLoads int
 
 	mu       sync.Mutex
-	browser  *rod.Browser
+	current  *instance
 	closed   bool
-	inflight sync.WaitGroup // tracks active Load calls so Close can drain them
+	inflight sync.WaitGroup // tracks active Load calls and retirements so Close can drain them
 }
 
 // NewManager creates a browser manager. The Chromium binary path can be set via
@@ -90,6 +124,7 @@ func NewManager() *Manager {
 	return &Manager{
 		binPath:  os.Getenv("BROWSER_BIN"),
 		headless: true,
+		maxLoads: maxLoadsPerBrowser,
 	}
 }
 
@@ -104,24 +139,35 @@ func Default() *Manager {
 	return defaultMgr
 }
 
-// instance lazily launches the browser and reuses it across calls, relaunching
-// if a previous instance died.
-func (m *Manager) instance() (*rod.Browser, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+// currentLocked returns a live instance, launching one when there is none, the
+// previous one died, or it has served its quota. m.mu must be held.
+func (m *Manager) currentLocked() (*instance, error) {
 	if m.closed {
 		return nil, ErrClosed
 	}
 
-	if m.browser != nil {
-		if _, err := m.browser.Version(); err == nil {
-			return m.browser, nil
+	if in := m.current; in != nil {
+		_, err := in.browser.Version()
+		if err == nil && in.loads < m.maxLoads {
+			return in, nil
 		}
-		_ = m.browser.Close()
-		m.browser = nil
+		// Dead or used up: detach it. Loads still running on it keep their
+		// reference and the last one to finish shuts it down.
+		m.current = nil
+		if in.active == 0 {
+			m.retire(in)
+		}
 	}
 
+	in, err := m.launch()
+	if err != nil {
+		return nil, err
+	}
+	m.current = in
+	return in, nil
+}
+
+func (m *Manager) launch() (*instance, error) {
 	l := launcher.New().
 		Headless(m.headless).
 		Leakless(false).              // the leakless helper is unreliable on musl/alpine
@@ -135,22 +181,73 @@ func (m *Manager) instance() (*rod.Browser, error) {
 
 	controlURL, err := l.Launch()
 	if err != nil {
+		l.Cleanup()
 		return nil, fmt.Errorf("launch browser: %w", err)
 	}
 
 	browser := rod.New().ControlURL(controlURL)
 	if err := browser.Connect(); err != nil {
+		l.Kill()
+		l.Cleanup()
 		return nil, fmt.Errorf("connect browser: %w", err)
 	}
 
-	m.browser = browser
-	return browser, nil
+	return &instance{browser: browser, launcher: l}, nil
+}
+
+// retire shuts a detached instance down in the background. m.mu must be held;
+// Close waits for retirements through inflight.
+func (m *Manager) retire(in *instance) {
+	m.inflight.Go(func() {
+		_ = in.shutdown()
+	})
+}
+
+// acquire reserves a slot on the current instance for one page load.
+func (m *Manager) acquire() (*instance, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	in, err := m.currentLocked()
+	if err != nil {
+		return nil, err
+	}
+	in.loads++
+	in.active++
+	return in, nil
+}
+
+// release returns a slot taken by acquire. The last load on a detached
+// instance shuts it down; when the current instance has just used up its quota
+// it is detached and a replacement is launched in the background, so the next
+// request does not pay the cold start.
+func (m *Manager) release(in *instance) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	in.active--
+	if in.active > 0 {
+		return
+	}
+	if in != m.current {
+		m.retire(in)
+		return
+	}
+	if in.loads >= m.maxLoads && !m.closed {
+		m.current = nil
+		m.retire(in)
+		m.inflight.Go(func() {
+			_ = m.Warmup()
+		})
+	}
 }
 
 // Warmup launches the browser ahead of time so the first real request does not
 // pay the cold-start cost (important for the time-boxed inline-query path).
 func (m *Manager) Warmup() error {
-	_, err := m.instance()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, err := m.currentLocked()
 	return err
 }
 
@@ -166,18 +263,18 @@ func (m *Manager) Close() error {
 	m.closed = true
 	m.mu.Unlock()
 
-	// Drain active loads before tearing the browser down (they hold the *rod.Browser
-	// pointer after releasing the lock).
+	// Drain active loads and background retirements before tearing the browser
+	// down.
 	m.inflight.Wait()
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.browser == nil {
+	in := m.current
+	m.current = nil
+	m.mu.Unlock()
+	if in == nil {
 		return nil
 	}
-	err := m.browser.Close()
-	m.browser = nil
-	return err
+	return in.shutdown()
 }
 
 // Load opens url in the shared browser, waits for it to load, and returns the
@@ -198,18 +295,26 @@ func (m *Manager) Load(ctx context.Context, url string, opts ...LoadOption) (*Re
 	m.mu.Unlock()
 	defer m.inflight.Done()
 
-	browser, err := m.instance()
+	in, err := m.acquire()
 	if err != nil {
 		return nil, err
 	}
+	defer m.release(in)
 
-	page, err := browser.Page(proto.TargetCreateTarget{})
+	tab, err := in.browser.Page(proto.TargetCreateTarget{})
 	if err != nil {
 		return nil, fmt.Errorf("open page: %w", err)
 	}
-	defer func() { _ = page.Close() }()
+	// Close through the tab's own (browser-scoped) context, not the request
+	// one: when the request times out or is cancelled — routine for inline
+	// queries with their 10s budget — a close bound to that context is never
+	// sent, and the tab stays open in Chromium forever, rendering Instagram's
+	// JS. That is how production accumulated a 488MB renderer.
+	defer func() { _ = tab.Timeout(closeTimeout).Close() }()
 
-	page = page.Context(ctx).Timeout(navTimeout)
+	navCtx, cancel := context.WithTimeout(ctx, navTimeout)
+	defer cancel()
+	page := tab.Context(navCtx)
 
 	// Block the heavy resource types the extractors never use (images, video,
 	// fonts, stylesheets). Everything we need lives in the server-rendered JSON,
@@ -228,7 +333,7 @@ func (m *Manager) Load(ctx context.Context, url string, opts ...LoadOption) (*Re
 		return nil, fmt.Errorf("navigate: %w", err)
 	}
 
-	html, err := settle(ctx, page, cfg.ready)
+	html, err := settle(navCtx, page, cfg.ready)
 	if err != nil {
 		return nil, err
 	}
