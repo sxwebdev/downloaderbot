@@ -13,13 +13,14 @@ type Extractor struct {
 	fetcher instagram.Fetcher
 }
 
-// New creates a new Instagram extractor. It uses the browser-based fetcher by
-// default, which drives a real headless Chromium and so bypasses Instagram's
-// anti-bot challenges that break the legacy HTTP fetcher. The legacy fetcher
-// remains available via instagram.NewAPIFetcher().
+// New creates a new Instagram extractor. It fetches the post page with a single
+// browser-like HTTP request and falls back to rendering it in the headless
+// Chromium only when that fails: the media JSON is in the server-rendered
+// document, so the browser is just the way past a challenge page. The legacy
+// GraphQL fetcher remains available via instagram.NewAPIFetcher().
 func New() *Extractor {
 	return &Extractor{
-		fetcher: instagram.NewBrowserFetcher(),
+		fetcher: instagram.NewFallbackFetcher(instagram.NewHTTPFetcher(), instagram.NewBrowserFetcher()),
 	}
 }
 

@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A Telegram bot (`gopkg.in/telebot.v3`, long polling) that takes a media link, extracts the
-downloadable media, and sends it back — plus a gRPC API exposing the same extraction. Instagram
-and TikTok are scraped through a headless Chromium; YouTube and ~40 other sites go through
-libraries.
+downloadable media, and sends it back — plus a gRPC API exposing the same extraction. TikTok is
+scraped through a headless Chromium; Instagram is fetched with one browser-like HTTP request and
+falls back to Chromium only when that fails; YouTube and ~40 other sites go through libraries.
 
 ## Commands
 
@@ -75,7 +75,11 @@ short-link domains explicitly (`vt.tiktok.com`, `vm.tiktok.com`, `b23.tv`, ...).
 
 Four registration groups:
 
-- `instagram` — custom, browser-based.
+- `instagram` — custom: `FallbackFetcher(HTTPFetcher, BrowserFetcher)`. The media JSON is in the
+  server-rendered document, which Instagram serves to plain HTTP when the request carries a full
+  browser navigation `Accept` (a bare `text/html` gets a page without media). This is ~6x faster
+  than rendering in the CPU-limited pod; `instagram_fetches_total{method}` shows how often the
+  browser fallback is still needed.
 - `youtube` — `kkdai/youtube`; returns one item per quality/format rather than a single file.
 - `tiktok` — custom, browser-based. **Deliberately not mapped in the lux host table** — lux's
   TikTok extractor is blocked by anti-bot.

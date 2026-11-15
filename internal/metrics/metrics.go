@@ -87,6 +87,17 @@ var (
 		Name: "telegram_deliveries_total",
 		Help: "Final outcomes of media delivery operations to Telegram after retries.",
 	}, []string{"source", "kind", "outcome", "reason"})
+
+	InstagramFetches = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "instagram_fetches_total",
+		Help: "Instagram post page fetches by method (plain HTTP first, headless browser as fallback).",
+	}, []string{"method", "outcome", "reason"})
+)
+
+// Instagram fetch methods.
+const (
+	InstagramMethodHTTP    = "http"
+	InstagramMethodBrowser = "browser"
 )
 
 func init() {
@@ -103,8 +114,16 @@ func init() {
 		MediaDownloadBytes,
 		MediaDownloadCompletedBytes,
 		TelegramDeliveries,
+		InstagramFetches,
 		processActiveUsers,
 	)
+}
+
+// ObserveInstagramFetch records one Instagram page fetch. A rising browser
+// count means Instagram stopped serving the media to plain HTTP requests.
+func ObserveInstagramFetch(method string, err error) {
+	outcome, reason := outcomeAndReason(err, ReasonOther)
+	InstagramFetches.WithLabelValues(method, outcome, reason).Inc()
 }
 
 // ObserveExtractionAttempt records one extractor call. Calls made by retries
