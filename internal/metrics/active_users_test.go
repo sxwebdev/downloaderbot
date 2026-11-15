@@ -90,15 +90,13 @@ func TestActiveUsersAccuracyAndConcurrency(t *testing.T) {
 	const workers = 10
 	var wg sync.WaitGroup
 	for worker := range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			start := worker * (uniqueUsers / workers)
 			end := start + uniqueUsers/workers
 			for id := start + 1; id <= end; id++ {
 				users.observe(int64(id))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

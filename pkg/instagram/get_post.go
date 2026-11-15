@@ -18,7 +18,7 @@ import (
 	"time"
 
 	browser "github.com/EDDYCJY/fake-useragent"
-	"github.com/sxwebdev/colly/v2"
+	"github.com/gocolly/colly/v2"
 	"github.com/sxwebdev/downloaderbot/internal/models"
 	"github.com/sxwebdev/downloaderbot/internal/util"
 	"github.com/sxwebdev/downloaderbot/pkg/instagram/response"

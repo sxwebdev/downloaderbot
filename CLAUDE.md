@@ -37,6 +37,13 @@ browser** (`instagram_test.go`, `browser_test.go`, `tiktok_test.go`). They are g
 `testing.Short()`, so use `-short` when offline or when a failure would only mean "Instagram
 changed its markup again". Everything else is pure unit tests.
 
+Two indirect dependencies are held back on purpose, because their newer majors break modules that are
+already at their latest release: `github.com/ysmood/fetchup` stays at v0.2.x (go-rod v0.116.2's
+launcher calls the old `fetchup.New` signature) and `github.com/gobwas/glob` at v0.2.x (`gocolly/colly`
+v2.3.0 uses `glob.Glob`, removed in glob v1). A blanket `go get -u ./...` bumps both and the build
+fails in `go-rod/rod/lib/launcher` and `gocolly/colly/v2`; downgrade them again with
+`go get github.com/ysmood/fetchup@v0.2.3 github.com/gobwas/glob@v0.2.3`.
+
 `make genenvs` must be re-run after any change to `internal/config.Config` — `ENVS.md` and
 `config.template.yaml` are generated artifacts, never edit them by hand.
 
